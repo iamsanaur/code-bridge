@@ -1,0 +1,223 @@
+import { randomUUID } from 'node:crypto';
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { AgentCommand } from '@codebridge/protocol';
+import type { AgentConfig, Workspace } from '../src/config.js';
+import { MemorySecretStore } from '../src/secrets.js';
+import { SessionManager } from '../src/sessions/manager.js';
+import { EventLog, silentLog, tempWorkspace, testConfig } from './helpers.js';
+
+let ws: Workspace;
+let cfg: AgentConfig;
+let log: EventLog;
+let mgr: SessionManager;
+
+beforeEach(async () => {
+  ws = await tempWorkspace({ 'file.txt': 'x' });
+  cfg = testConfig(ws);
+  log = new EventLog();
+  mgr = new SessionManager({
+    getConfig: () => cfg,
+    secrets: new MemorySecretStore(),
+    sink: log.sink,
+    log: silentLog,
+  });
+});
+
+const run = (command: AgentCommand, commandId = randomUUID(), issuedAt = Date.now()) =>
+  mgr.handle(commandId, issuedAt, command);
+const start = (extra: Partial<Extract<AgentCommand, { op: 'session.start' }>> = {}) => {
+  const sessionId = randomUUID();
+  return run({
+    op: 'session.start',
+    sessionId,
+    workspaceId: ws.id,
+    mode: 'command',
+    presetId: 'echo',
+    cols: 80,
+    rows: 24,
+    ...extra,
+  }).then((ack) => ({ ack, sessionId }));
+};
+
+describe('SessionManager', () => {
+  it('runs a preset in a PTY and emits ordered output and exit status', async () => {
+    const { ack, sessionId } = await start();
+    expect(ack.ok).toBe(true);
+    await log.waitFor(
+      (e) =>
+        e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'completed',
+    );
+    expect(log.output(sessionId)).toContain('hello from preset');
+    const seqs = log.events.filter((e) => e.sessionId === sessionId).map((e) => e.seq);
+    expect(seqs).toEqual(seqs.map((_, i) => i + 1)); // strictly 1..n
+    const final = log.events.at(-1)!.event;
+    expect(final).toMatchObject({ kind: 'status', status: 'completed', exitCode: 0 });
+  });
+
+  it('reports failures with the exit code', async () => {
+    const { sessionId } = await start({ presetId: 'fail' });
+    const e = await log.waitFor(
+      (e) => e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'failed',
+    );
+    expect(e.event).toMatchObject({ exitCode: 1 });
+  });
+
+  it('rejects unknown workspaces and presets', async () => {
+    expect((await start({ workspaceId: 'ws_ffffffffffff' })).ack.error?.code).toBe('not_found');
+    expect((await start({ presetId: 'nope' })).ack.error?.code).toBe('not_found');
+  });
+
+  it('refuses custom commands and shells unless enabled on the Mac', async () => {
+    const custom = await start({ presetId: undefined, argv: ['ls', '-la'] });
+    expect(custom.ack.error?.code).toBe('policy_denied');
+    const shell = await start({ mode: 'shell', presetId: undefined });
+    expect(shell.ack.error?.code).toBe('policy_denied');
+  });
+
+  it('with custom commands enabled, denies dangerous programs and asks to confirm risky ones', async () => {
+    cfg = testConfig(ws, { allowCustomCommands: true });
+    expect((await start({ presetId: undefined, argv: ['sudo', 'ls'] })).ack.error?.code).toBe(
+      'policy_denied',
+    );
+    expect((await start({ presetId: undefined, argv: ['/bin/ls'] })).ack.error?.code).toBe(
+      'policy_denied',
+    );
+    const risky = await start({ presetId: undefined, argv: ['rm', 'file.txt'] });
+    expect(risky.ack.error?.code).toBe('requires_confirmation');
+    const confirmed = await start({
+      presetId: undefined,
+      argv: ['rm', 'file.txt'],
+      confirmedRisk: true,
+    });
+    expect(confirmed.ack.ok).toBe(true);
+    const safe = await start({ presetId: undefined, argv: ['ls'] });
+    expect(safe.ack.ok).toBe(true);
+    await log.waitFor(
+      (e) =>
+        e.sessionId === safe.sessionId &&
+        e.event.kind === 'status' &&
+        e.event.status === 'completed',
+    );
+  });
+
+  it('never executes a duplicate command id twice', async () => {
+    const commandId = randomUUID();
+    const sessionId = randomUUID();
+    const cmd: AgentCommand = {
+      op: 'session.start',
+      sessionId,
+      workspaceId: ws.id,
+      mode: 'command',
+      presetId: 'echo',
+      cols: 80,
+      rows: 24,
+    };
+    const a = await run(cmd, commandId);
+    const b = await run(cmd, commandId);
+    expect(a).toEqual(b);
+    await log.waitFor(
+      (e) =>
+        e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'completed',
+    );
+    const started = log.events.filter(
+      (e) => e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'running',
+    );
+    expect(started).toHaveLength(1);
+    const ptyOut = log.events.filter(
+      (e) => e.sessionId === sessionId && e.event.kind === 'output' && e.event.stream !== 'system',
+    );
+    expect(
+      ptyOut
+        .map((e) => (e.event as { data: string }).data)
+        .join('')
+        .match(/hello from preset/g),
+    ).toHaveLength(1);
+  });
+
+  it('rejects commands outside the replay window', async () => {
+    const ack = await run(
+      { op: 'git.status', workspaceId: ws.id },
+      randomUUID(),
+      Date.now() - 5 * 60_000,
+    );
+    expect(ack.error?.code).toBe('stale_command');
+  });
+
+  it('forwards terminal input and supports interrupt and terminate', async () => {
+    const { sessionId } = await start({ presetId: 'cat' });
+    await log.waitFor(
+      (e) => e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'running',
+    );
+    expect((await run({ op: 'session.input', sessionId, data: 'ping\r' })).ok).toBe(true);
+    await log.waitFor(
+      (e) =>
+        e.sessionId === sessionId && e.event.kind === 'output' && e.event.data.includes('ping'),
+    );
+    await run({ op: 'session.signal', sessionId, signal: 'interrupt' });
+    await log.waitFor(
+      (e) =>
+        e.sessionId === sessionId &&
+        e.event.kind === 'status' &&
+        ['failed', 'completed', 'killed'].includes(e.event.status),
+    );
+
+    const sleeper = await start({ presetId: 'sleep' });
+    await log.waitFor(
+      (e) =>
+        e.sessionId === sleeper.sessionId &&
+        e.event.kind === 'status' &&
+        e.event.status === 'running',
+    );
+    await run({ op: 'session.signal', sessionId: sleeper.sessionId, signal: 'terminate' });
+    const killed = await log.waitFor(
+      (e) =>
+        e.sessionId === sleeper.sessionId &&
+        e.event.kind === 'status' &&
+        e.event.status === 'killed',
+    );
+    expect(killed.event.kind).toBe('status');
+  });
+
+  it('replays events after a given seq and reports what is no longer buffered', async () => {
+    const { sessionId } = await start();
+    await log.waitFor(
+      (e) =>
+        e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'completed',
+    );
+    const before = log.events.length;
+    const ack = await run({ op: 'session.replay', sessionId, afterSeq: 1 });
+    expect(ack.ok).toBe(true);
+    expect((ack.result as { oldestAvailableSeq: number }).oldestAvailableSeq).toBe(1);
+    const replayed = log.events.slice(before);
+    expect(replayed[0]!.seq).toBe(2);
+    expect(mgr.snapshot()).toEqual([
+      { sessionId, status: 'completed', lastSeq: replayed.at(-1)!.seq },
+    ]);
+  });
+
+  it('requires an API key on the Mac for coding-agent sessions', async () => {
+    const r = await start({ mode: 'agent', presetId: undefined });
+    expect(r.ack.error?.code).toBe('anthropic_key_missing');
+  });
+
+  it('returns git status for a workspace', async () => {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('git', ['init', '-q'], { cwd: ws.path });
+    const ack = await run({ op: 'git.status', workspaceId: ws.id });
+    expect(ack.ok).toBe(true);
+    expect((ack.result as { files: Array<{ path: string }> }).files.map((f) => f.path)).toContain(
+      'file.txt',
+    );
+  });
+
+  it('disposes everything on revocation', async () => {
+    const { sessionId } = await start({ presetId: 'sleep' });
+    await log.waitFor(
+      (e) => e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'running',
+    );
+    mgr.disposeAll();
+    await log.waitFor(
+      (e) => e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'killed',
+    );
+  });
+});
