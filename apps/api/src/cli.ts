@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadEnv } from './env.js';
 import { connectLink } from '@codebridge/shared';
@@ -12,7 +12,7 @@ import {
 } from './cli/link.js';
 import { connectLocalAgent } from './cli/agent.js';
 import { deployToFly, FlyError } from './cli/fly.js';
-import { startQuickTunnel, TunnelError, type Tunnel } from './cli/tunnel.js';
+import { startQuickTunnel, TunnelError, verifyRelayReachable, type Tunnel } from './cli/tunnel.js';
 import { runRelay } from './run.js';
 
 const USAGE = `codebridge-relay: your own CodeBridge relay (connects your phone to your computer)
@@ -62,7 +62,13 @@ async function start(args: string[]): Promise<number> {
   let publicUrl = flag(args, '--public-url') ?? process.env.PUBLIC_URL;
   if (flag(args, '--tunnel') === 'cloudflare') {
     console.log('Opening a Cloudflare tunnel…');
-    tunnel = await startQuickTunnel(port);
+    mkdirSync(dir, { recursive: true });
+    const quickConfig = path.join(dir, 'cloudflared-quick.yml'); // empty on purpose: see startQuickTunnel
+    writeFileSync(
+      quickConfig,
+      '# intentionally empty: quick tunnels must ignore ~/.cloudflared/config.yml\n',
+    );
+    tunnel = await startQuickTunnel(port, { configPath: quickConfig });
     publicUrl = tunnel.url;
   } else if (flag(args, '--tunnel')) {
     console.error(`Unknown tunnel "${flag(args, '--tunnel')}". Supported: cloudflare`);
@@ -99,6 +105,19 @@ async function start(args: string[]): Promise<number> {
     throw err;
   }
   writeFileSync(addressFile(dir), publicUrl + '\n');
+  if (tunnel) {
+    console.log('Waiting for the public address to reach the relay…');
+    const reach = await verifyRelayReachable(publicUrl);
+    if (!reach.ok) {
+      console.error(
+        `\nThe public address ${publicUrl} is not reaching the relay (${reach.status ? `it answered HTTP ${reach.status}` : 'no answer'}).\n` +
+          'Something else is answering for it, or the tunnel is not ready. Check your Cloudflare setup, or deploy with `codebridge-relay fly`.',
+      );
+      tunnel.stop();
+      await relay.stop();
+      return 1;
+    }
+  }
   console.log(`CodeBridge relay running at ${publicUrl}`);
   if (!publicUrl.startsWith('https://'))
     console.log(

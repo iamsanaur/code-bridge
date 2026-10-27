@@ -7,7 +7,7 @@ import { connectLink, parseConnectLink } from '@codebridge/shared';
 import net from 'node:net';
 import { findFreePort, persistedSecret, portIsFree } from '../src/cli/link.js';
 import { connectLocalAgent, type AgentRun } from '../src/cli/agent.js';
-import { startQuickTunnel, TunnelError } from '../src/cli/tunnel.js';
+import { startQuickTunnel, TunnelError, verifyRelayReachable } from '../src/cli/tunnel.js';
 
 const tmp = () => mkdtempSync(path.join(os.tmpdir(), 'cb-cli-'));
 
@@ -206,5 +206,57 @@ describe('port selection', () => {
     const port = (taken.address() as net.AddressInfo).port;
     await expect(findFreePort(port, 1)).rejects.toThrow(/No free port/);
     await new Promise((r) => taken.close(r));
+  });
+});
+
+describe.skipIf(process.platform === 'win32')(
+  'quick tunnel ignores an existing cloudflared config',
+  () => {
+    it('passes --config with the empty file, before the other flags', async () => {
+      const dir = tmp();
+      const argsFile = path.join(dir, 'args.json');
+      const command = fakeCloudflared(
+        `require('fs').writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2))); console.error('https://calm-fox-1.trycloudflare.com'); setInterval(()=>{},1000)`,
+      );
+      const t = await startQuickTunnel(8123, { command, configPath: '/x/empty.yml' });
+      await new Promise((r) => setTimeout(r, 200));
+      const args = JSON.parse(readFileSync(argsFile, 'utf8')) as string[];
+      t.stop();
+      expect(args.slice(0, 3)).toEqual(['tunnel', '--config', '/x/empty.yml']);
+      expect(args).toContain('http://127.0.0.1:8123');
+    });
+  },
+);
+
+describe('public address check', () => {
+  const answer = (status: number, body: unknown) =>
+    (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  it('accepts the relay', async () => {
+    const r = await verifyRelayReachable('https://x.dev', {
+      fetchFn: answer(200, { service: 'codebridge-relay', mode: 'personal' }),
+    });
+    expect(r).toEqual({ ok: true, status: 200 });
+  });
+  it('reports another service answering, such as a catch-all 404', async () => {
+    const r = await verifyRelayReachable('https://x.dev', {
+      timeoutMs: 300,
+      intervalMs: 50,
+      fetchFn: (async () => new Response('', { status: 404 })) as unknown as typeof fetch,
+    });
+    expect(r).toEqual({ ok: false, status: 404 });
+  });
+  it('keeps trying while the tunnel comes up', async () => {
+    let calls = 0;
+    const r = await verifyRelayReachable('https://x.dev', {
+      timeoutMs: 2000,
+      intervalMs: 20,
+      fetchFn: (async () => {
+        calls++;
+        if (calls < 3) throw new Error('not yet');
+        return new Response(JSON.stringify({ service: 'codebridge-relay' }), { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    expect(r.ok).toBe(true);
+    expect(calls).toBe(3);
   });
 });
