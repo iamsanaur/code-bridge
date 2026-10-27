@@ -150,10 +150,19 @@ describe('end-to-end: phone -> relay -> Mac agent', () => {
     expect(outputOf(id)).toContain('hello from the mac');
     const seqs = eventsFor(id).map((e) => e.seq);
     expect(seqs).toEqual(seqs.map((_, i) => i + 1));
-    const row = await api<{ status: string; exitCode: number }>(ctx, 'GET', `/v1/sessions/${id}`, {
-      token: user.token,
-    });
-    expect(row.body).toMatchObject({ status: 'completed', exitCode: 0 });
+    // The replayed status event can reach the phone just before the relay's
+    // status UPDATE commits, so wait for the persisted row.
+    await expect
+      .poll(
+        async () =>
+          (
+            await api<{ status: string; exitCode: number }>(ctx, 'GET', `/v1/sessions/${id}`, {
+              token: user.token,
+            })
+          ).body,
+        { timeout: 3000 },
+      )
+      .toMatchObject({ status: 'completed', exitCode: 0 });
   });
 
   it('does not pass the agent environment (API keys) to child processes', async () => {
