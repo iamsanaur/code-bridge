@@ -174,6 +174,9 @@ struct DeviceView: View {
     let deviceId: String
     @Environment(AppModel.self) private var app
     @State private var trigger = 0
+    @State private var creating = false
+    /// Set right after a project is created, so the next screen is "start a session in it".
+    @State private var createdWorkspaceId: String?
 
     var body: some View {
         List {
@@ -189,9 +192,20 @@ struct DeviceView: View {
                             .font(.footnote).foregroundStyle(Palette.warning)
                     }
                 }
-                Section("Approved workspaces") {
+                Section("Projects") {
+                    if d.capabilities?.canCreateWorkspaces == true {
+                        Button { creating = true } label: {
+                            Label("New project", systemImage: "folder.badge.plus").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .disabled(!d.online)
+                        .accessibilityHint("Creates a new folder on \(d.name) and starts a project in it")
+                    }
                     if d.workspaces.isEmpty {
-                        Text("No workspaces yet. On the Mac run: codebridge-agent workspace add ~/path/to/project").font(.footnote)
+                        Text(d.capabilities?.canCreateWorkspaces == true
+                             ? "No projects yet. Create one above, or on the computer run: codebridge-agent workspace add ~/path/to/project"
+                             : "No workspaces yet. On the computer run: codebridge-agent workspace add ~/path/to/project")
+                            .font(.footnote)
                     }
                     ForEach(d.workspaces) { w in
                         VStack(alignment: .leading, spacing: 8) {
@@ -211,6 +225,19 @@ struct DeviceView: View {
                         .padding(.vertical, 4)
                     }
                 }
+                .sheet(isPresented: $creating) {
+                    NavigationStack {
+                        NewProjectView(device: d) { workspace in
+                            creating = false
+                            trigger += 1
+                            createdWorkspaceId = workspace.id
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                }
+                .navigationDestination(isPresented: Binding(get: { createdWorkspaceId != nil }, set: { if !$0 { createdWorkspaceId = nil } })) {
+                    if let id = createdWorkspaceId { NewSessionView(deviceId: d.id, workspaceId: id) }
+                }
                 Section("Capabilities (set on the Mac)") {
                     if let c = d.capabilities {
                         LabeledContent("Terminal", value: c.pty ? "PTY" : "pipes only")
@@ -218,6 +245,7 @@ struct DeviceView: View {
                         LabeledContent("Claude Code CLI", value: c.claudeCodeAvailable ? "Available" : "Not available")
                         LabeledContent("Custom commands", value: c.allowCustomCommands ? "Allowed" : "Disabled")
                         LabeledContent("Interactive shell", value: c.allowInteractiveShell ? "Allowed" : "Disabled")
+                        LabeledContent("New projects from this phone", value: c.canCreateWorkspaces == true ? "Allowed" : "Disabled")
                     } else {
                         Text("The Mac hasn’t connected yet.").font(.footnote)
                     }
@@ -353,6 +381,61 @@ struct InstallTip: View {
         } label: {
             Label("How to install the agent (Mac or Windows)", systemImage: "lightbulb")
                 .font(.subheadline.weight(.semibold))
+        }
+    }
+}
+
+
+/// Start a new project on a computer by name. The phone sends only a name: the computer creates a brand-new
+/// folder inside its own projects folder, never an existing one, and the owner can switch this off.
+struct NewProjectView: View {
+    let device: Device
+    let onCreated: (WorkspaceInfo) -> Void
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var gitInit = true
+    @State private var runner = ActionRunner()
+    @FocusState private var focused: Bool
+
+    private var problem: String? { projectNameError(name) }
+    private var canCreate: Bool { isValidProjectName(name) && !runner.busy }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Project name", text: $name)
+                    .focused($focused)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.go)
+                    .onSubmit { create() }
+                if let problem { Label(problem, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(Palette.danger) }
+            } footer: {
+                Text("A new folder is created on \(device.name), inside its projects folder (~/CodeBridge by default). Existing folders are never touched.")
+            }
+            Section {
+                Toggle("Start a git repository", isOn: $gitInit)
+            }
+            Section { InlineError(message: runner.error) }
+        }
+        .navigationTitle("New project")
+        .navigationBarTitleDisplayMode(.inline)
+        .explicitBackButton()
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Create") { create() }.disabled(!canCreate)
+            }
+        }
+        .onAppear { focused = true }
+    }
+
+    private func create() {
+        guard canCreate else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        runner.run {
+            let result = try await app.api.createWorkspace(deviceId: device.id, name: trimmed, gitInit: gitInit)
+            onCreated(result.workspace)
         }
     }
 }

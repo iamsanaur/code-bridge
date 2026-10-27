@@ -55,11 +55,11 @@ The app has a **Set up a relay** screen with both commands, a Copy button and a 
 <table>
   <tr>
     <td><b>Android</b></td>
-    <td>Download <a href="releases/CodeBridge-0.1.0.apk"><code>CodeBridge-0.1.0.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
+    <td>Download <a href="releases/CodeBridge-0.2.0.apk"><code>CodeBridge-0.2.0.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
   </tr>
   <tr>
     <td><b>iOS</b></td>
-    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.1.0.ipa"><code>CodeBridge-0.1.0.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
+    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.2.0.ipa"><code>CodeBridge-0.2.0.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
   </tr>
 </table>
 
@@ -67,7 +67,7 @@ Open the app, tap **Scan QR code**, scan the code from step 1, confirm the relay
 
 ### 3. Run a session
 
-Choose your computer, pick a project folder, and start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
+Choose your computer and either pick a project folder or tap **New project** to start a fresh one (a new folder on your computer, optionally with `git init`), then start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
 
 ## Screenshots
 
@@ -149,7 +149,7 @@ cd releases && shasum -a 256 -c SHA256SUMS
 ```
 
 The APK is signed with the project's release key. Check its certificate with
-`apksigner verify --print-certs CodeBridge-0.1.0.apk`.
+`apksigner verify --print-certs CodeBridge-0.2.0.apk`.
 
 ## Under the hood
 

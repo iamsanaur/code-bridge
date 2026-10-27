@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { parseConnectLink } from '@codebridge/shared';
@@ -10,6 +12,7 @@ import { apiRequest } from './http.js';
 import { isWindows } from './platform.js';
 import { installAutostart, uninstallAutostart } from './service.js';
 import { createLogger } from './log.js';
+import { projectsRoot } from './projects.js';
 import { pair } from './pair.js';
 import { createSecretStore } from './secrets.js';
 import { AGENT_VERSION } from './version.js';
@@ -27,7 +30,8 @@ Usage:
   codebridge-agent workspace remove <id>
   codebridge-agent credentials set           Store an Anthropic API key in the system credential store (for the coding agent)
   codebridge-agent credentials status|clear
-  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode> <true|false>
+  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowWorkspaceCreation> <true|false>
+  codebridge-agent policy set projectsRoot <dir>   Where projects created from the phone live (default ~/CodeBridge)
   codebridge-agent service install|uninstall Start at login (LaunchAgent on macOS, scheduled task on Windows)
   codebridge-agent unpair                    Revoke this Mac and delete its credential
 
@@ -237,7 +241,21 @@ async function main(argv: string[]): Promise<number> {
     case 'policy': {
       if (sub === 'set') {
         const [key, value] = rest;
-        const keys = ['allowCustomCommands', 'allowInteractiveShell', 'allowClaudeCode'] as const;
+        if (key === 'projectsRoot') {
+          if (!value) return usage();
+          const dir = path.resolve(value.replace(/^~(?=$|[\\/])/, os.homedir()));
+          const c = await store.update((cfg) => {
+            cfg.policy.projectsRoot = dir;
+          });
+          printPolicy(c);
+          return 0;
+        }
+        const keys = [
+          'allowCustomCommands',
+          'allowInteractiveShell',
+          'allowClaudeCode',
+          'allowWorkspaceCreation',
+        ] as const;
         if (
           !keys.includes(key as (typeof keys)[number]) ||
           !['true', 'false'].includes(value ?? '')
@@ -247,7 +265,7 @@ async function main(argv: string[]): Promise<number> {
           cfg.policy[key as (typeof keys)[number]] = value === 'true';
         });
         printPolicy(c);
-        if (value === 'true' && key !== 'allowClaudeCode') {
+        if (value === 'true' && key !== 'allowClaudeCode' && key !== 'allowWorkspaceCreation') {
           console.log(
             '\nWarning: this lets your paired phone run arbitrary programs in your workspaces as your user.',
           );
@@ -318,6 +336,8 @@ function printPolicy(c: AgentConfig) {
   console.log(`  allowCustomCommands:   ${c.policy.allowCustomCommands}`);
   console.log(`  allowInteractiveShell: ${c.policy.allowInteractiveShell}`);
   console.log(`  allowClaudeCode:       ${c.policy.allowClaudeCode}`);
+  console.log(`  allowWorkspaceCreation: ${c.policy.allowWorkspaceCreation}`);
+  console.log(`  projectsRoot:          ${projectsRoot(c.policy)}`);
   console.log(`  presets:               ${c.policy.presets.map((p) => p.id).join(', ')}`);
 }
 

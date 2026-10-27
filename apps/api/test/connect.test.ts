@@ -2,6 +2,7 @@
  * The whole "no login" story: a personal relay, an agent that joins with only the
  * link/QR secret, and the phone (also using only the secret) seeing and driving it.
  */
+import { existsSync } from 'node:fs';
 import { mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,7 +29,7 @@ afterAll(async () => {
 });
 
 describe('connecting with only the link', () => {
-  it('pairs an agent with no phone and no password, and it comes online for the phone', async () => {
+  it('pairs an agent with no phone and no password, it comes online, and the phone can start a new project on it', async () => {
     const link = parseConnectLink(connectLink(ctx.baseUrl, SECRET))!;
     const home = await realpath(await mkdtemp(path.join(os.tmpdir(), 'cb-conn-home-')));
     const store = new ConfigStore(home);
@@ -69,8 +70,10 @@ describe('connecting with only the link', () => {
     const project = await realpath(await mkdtemp(path.join(os.tmpdir(), 'cb-conn-proj-')));
     await writeFile(path.join(project, 'README.md'), '# demo\n');
     const workspace = await prepareWorkspace(project);
+    const projects = await realpath(await mkdtemp(path.join(os.tmpdir(), 'cb-conn-projects-')));
     await store.update((c) => {
       c.workspaces.push(workspace);
+      c.policy.projectsRoot = projects;
     });
     runtime = new AgentRuntime({ store, secrets, log: quiet });
     await runtime.start();
@@ -89,5 +92,52 @@ describe('connecting with only the link', () => {
       if (!online) await sleep(100);
     }
     expect(online).toBe(true);
+
+    // Start a brand-new project on the computer, from the phone, by name only.
+    const created = await api<{
+      workspace: { id: string; name: string; isGitRepo: boolean };
+      gitInit: boolean;
+    }>(ctx, 'POST', `/v1/devices/${deviceId}/workspaces`, {
+      token,
+      body: { name: 'built-from-phone' },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.workspace).toMatchObject({ name: 'built-from-phone', isGitRepo: true });
+    expect(existsSync(path.join(projects, 'built-from-phone', '.git'))).toBe(true);
+
+    // The relay's device list learns about it, so a session can be started right away.
+    let listed = false;
+    for (let i = 0; i < 60 && !listed; i++) {
+      const d = await api<{ devices: { id: string; workspaces: { name: string }[] }[] }>(
+        ctx,
+        'GET',
+        '/v1/devices',
+        { token },
+      );
+      listed = !!d.body.devices
+        .find((x) => x.id === deviceId)
+        ?.workspaces.some((w) => w.name === 'built-from-phone');
+      if (!listed) await sleep(100);
+    }
+    expect(listed).toBe(true);
+
+    // Duplicates, paths and bad names are refused, and nothing is created outside the projects folder.
+    const dup = await api(ctx, 'POST', `/v1/devices/${deviceId}/workspaces`, {
+      token,
+      body: { name: 'built-from-phone' },
+    });
+    expect(dup.status).toBe(409);
+    for (const name of ['../escape', '/etc/passwd', 'a/b', '.hidden', '']) {
+      const bad = await api(ctx, 'POST', `/v1/devices/${deviceId}/workspaces`, {
+        token,
+        body: { name },
+      });
+      expect(bad.status).toBe(400);
+    }
+    expect(existsSync(path.join(path.dirname(projects), 'escape'))).toBe(false);
+    const noToken = await api(ctx, 'POST', `/v1/devices/${deviceId}/workspaces`, {
+      body: { name: 'x' },
+    });
+    expect(noToken.status).toBe(401);
   }, 30_000);
 });

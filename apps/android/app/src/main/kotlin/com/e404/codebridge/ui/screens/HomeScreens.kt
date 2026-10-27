@@ -2,6 +2,13 @@ package com.e404.codebridge.ui.screens
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import dev.codebridge.core.projectNameError
+import dev.codebridge.core.isValidProjectName
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -215,8 +222,16 @@ fun DeviceScreen(nav: NavController, id: String) {
                 OnlineBadge(d.online)
             }
             if (!d.online) Notice("This Mac is offline (last seen ${timeAgo(d.lastSeenAt)}). Make sure the CodeBridge agent is running and the Mac is awake.", NoticeTone.WARNING)
-            SectionHeader("Approved workspaces")
-            if (d.workspaces.isEmpty()) Notice("No workspaces yet. On the Mac run: codebridge-agent workspace add ~/path/to/project")
+            SectionHeader("Projects")
+            if (d.capabilities?.canCreateWorkspaces == true) {
+                Button(onClick = { nav.navigate(Routes.newProject(d.id)) }, enabled = d.online, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("New project") }
+            }
+            if (d.workspaces.isEmpty()) {
+                Notice(
+                    if (d.capabilities?.canCreateWorkspaces == true) "No projects yet. Create one above, or on the computer run: codebridge-agent workspace add ~/path/to/project"
+                    else "No workspaces yet. On the computer run: codebridge-agent workspace add ~/path/to/project",
+                )
+            }
             d.workspaces.forEach { w ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -240,6 +255,7 @@ fun DeviceScreen(nav: NavController, id: String) {
                         "Claude Code CLI" to if (c.claudeCodeAvailable) "available" else "not available",
                         "Custom commands" to if (c.allowCustomCommands) "allowed" else "disabled",
                         "Interactive shell" to if (c.allowInteractiveShell) "allowed" else "disabled",
+                        "New projects from this phone" to if (c.canCreateWorkspaces == true) "allowed" else "disabled",
                     ).forEach { (k, v) -> Text("$k: $v", style = MaterialTheme.typography.bodySmall) }
                 }
             }
@@ -322,3 +338,51 @@ fun PairScreen(nav: NavController, initialCode: String?) {
     }
 }
 
+
+
+/**
+ * Start a new project on a computer by name. The phone sends only a name: the computer creates a brand-new folder
+ * inside its own projects folder, never an existing one, and the owner can switch this off.
+ */
+@Composable
+fun NewProjectScreen(nav: NavController, deviceId: String) {
+    val api = LocalContainer.current.api
+    var name by remember { mutableStateOf("") }
+    var gitInit by remember { mutableStateOf(true) }
+    val action = rememberAction()
+    val problem = projectNameError(name)
+    val canCreate = isValidProjectName(name) && !action.busy
+    val create = {
+        if (canCreate) action.run {
+            val result = api.createWorkspace(deviceId, name.trim(), gitInit)
+            // Straight on to starting a session in the new project.
+            nav.navigate(Routes.newSession(deviceId, result.workspace.id)) { popUpTo(Routes.NEW_PROJECT) { inclusive = true } }
+        }
+    }
+    ScreenScaffold("New project", nav) {
+        Text(
+            "A new folder is created on your computer, inside its projects folder (~/CodeBridge by default). Existing folders are never touched.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Project name") },
+            singleLine = true,
+            isError = problem != null,
+            supportingText = { problem?.let { Text(it) } },
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Go),
+            keyboardActions = KeyboardActions(onGo = { create() }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Start a git repository", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Switch(checked = gitInit, onCheckedChange = { gitInit = it })
+        }
+        action.error?.let { Notice(it, NoticeTone.DANGER) }
+        Button(onClick = { create() }, enabled = canCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+            Text(if (action.busy) "Creating…" else "Create project")
+        }
+    }
+}

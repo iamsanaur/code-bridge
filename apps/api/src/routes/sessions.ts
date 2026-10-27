@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   createLocalSessionBodySchema,
+  createWorkspaceCommandSchema,
+  createWorkspaceResultSchema,
   gitStatusResultSchema,
   idSchema,
   isTerminalStatus,
@@ -300,6 +302,32 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       }),
     );
     return { ok: true };
+  });
+
+  /**
+   * Starts a new project on the computer: a brand-new folder with this name inside the owner's projects folder,
+   * registered as a workspace. The phone supplies only a name; the agent decides the location and refuses
+   * anything that already exists.
+   */
+  app.post('/v1/devices/:deviceId/workspaces', auth, async (req) => {
+    const { deviceId } = z.object({ deviceId: uuidSchema }).parse(req.params);
+    const body = createWorkspaceCommandSchema.omit({ op: true }).parse(req.body);
+    const dev = await loadDevice(deviceId, req.auth!.userId);
+    await audit(db, {
+      action: 'workspace.create',
+      userId: req.auth!.userId,
+      deviceId,
+      ip: req.ip,
+      metadata: { name: body.name },
+    });
+    const result = assertAck(
+      await relay.dispatchIdempotent(req.auth!.userId, dev.id, idempotencyKey(req), {
+        op: 'workspace.create',
+        name: body.name,
+        gitInit: body.gitInit,
+      }),
+    );
+    return createWorkspaceResultSchema.parse(result);
   });
 
   app.get('/v1/devices/:deviceId/workspaces/:workspaceId/git/status', auth, async (req) => {

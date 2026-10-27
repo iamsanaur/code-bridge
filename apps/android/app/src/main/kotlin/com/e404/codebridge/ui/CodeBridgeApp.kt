@@ -51,6 +51,7 @@ import com.e404.codebridge.ui.screens.DeviceScreen
 import com.e404.codebridge.ui.screens.DevicesScreen
 import com.e404.codebridge.ui.screens.HomeScreen
 import com.e404.codebridge.ui.screens.NewCloudSessionScreen
+import com.e404.codebridge.ui.screens.NewProjectScreen
 import com.e404.codebridge.ui.screens.NewSessionScreen
 import com.e404.codebridge.ui.screens.PairScreen
 import com.e404.codebridge.ui.screens.RegisterScreen
@@ -76,6 +77,7 @@ object Routes {
     const val PAIR = "pair?code={code}"
     const val DEVICES = "devices"
     const val DEVICE = "device/{id}"
+    const val NEW_PROJECT = "new-project/{deviceId}"
     const val NEW_SESSION = "new-session/{deviceId}/{workspaceId}"
     const val SESSION = "session/{id}"
     const val CHANGES = "changes/{deviceId}/{workspaceId}"
@@ -85,6 +87,7 @@ object Routes {
 
     fun pair(code: String? = null) = if (code == null) "pair" else "pair?code=$code"
     fun device(id: String) = "device/$id"
+    fun newProject(deviceId: String) = "new-project/$deviceId"
     fun newSession(deviceId: String, workspaceId: String) = "new-session/$deviceId/$workspaceId"
     fun session(id: String) = "session/$id"
     fun changes(deviceId: String, workspaceId: String) = "changes/$deviceId/$workspaceId"
@@ -158,6 +161,7 @@ fun CodeBridgeApp(
                     composable(Routes.PAIR) { PairScreen(nav, it.arguments?.getString("code")) }
                     composable(Routes.DEVICES) { DevicesScreen(nav) }
                     composable(Routes.DEVICE) { DeviceScreen(nav, it.arguments!!.getString("id")!!) }
+                    composable(Routes.NEW_PROJECT) { NewProjectScreen(nav, it.arguments!!.getString("deviceId")!!) }
                     composable(Routes.NEW_SESSION) { NewSessionScreen(nav, it.arguments!!.getString("deviceId")!!, it.arguments!!.getString("workspaceId")!!) }
                     composable(Routes.SESSION) { SessionScreen(nav, it.arguments!!.getString("id")!!) }
                     composable(Routes.CHANGES) { ChangesScreen(nav, it.arguments!!.getString("deviceId")!!, it.arguments!!.getString("workspaceId")!!) }

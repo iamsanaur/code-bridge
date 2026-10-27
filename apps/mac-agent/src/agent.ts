@@ -43,6 +43,12 @@ export class AgentRuntime {
 
     this.manager = new SessionManager({
       getConfig: () => this.config,
+      addWorkspace: async (ws) => {
+        this.config = await this.o.store.update((c) => {
+          c.workspaces.push(ws);
+        });
+        this.connection.send(this.hello()); // tell the relay straight away, not on the next config poll
+      },
       secrets: this.o.secrets,
       sink: (ev) => this.connection.sendEvent(ev),
       log: this.o.log,

@@ -35,6 +35,7 @@ rights, no Windows Service). To run in the foreground instead: `codebridge-agent
 ## Safety defaults
 
 - Only registered workspace folders are reachable. System folders and your whole home directory are refused.
+- Your phone can start a **new project** by name. The agent creates a brand-new folder inside its projects folder (`~/CodeBridge`, or `codebridge-agent policy set projectsRoot <dir>`), never reuses an existing folder, and registers it. Turn it off with `codebridge-agent policy set allowWorkspaceCreation false`.
 - Commands from the phone are limited to presets unless you turn on `allowCustomCommands`; risky programs
   need approval on the phone and some (`sudo`, `diskpart`, `reg`, …) are never run.
 - Interactive shells are off until you run `codebridge-agent policy set allowInteractiveShell true`.

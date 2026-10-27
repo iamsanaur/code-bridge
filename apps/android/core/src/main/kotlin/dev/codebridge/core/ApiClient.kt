@@ -200,6 +200,22 @@ class ApiClient(
     suspend fun createLocalSession(deviceId: String, body: CreateLocalSession): Session =
         request("POST", "/v1/devices/$deviceId/sessions", Session.serializer(), encode(body), idem())
 
+    /**
+     * Starts a new project on the computer: a brand-new folder with this name inside the owner's projects folder.
+     * Only a name is sent, never a path, and the computer refuses names that already exist.
+     */
+    suspend fun createWorkspace(deviceId: String, name: String, gitInit: Boolean): CreateWorkspaceResult =
+        request(
+            "POST",
+            "/v1/devices/$deviceId/workspaces",
+            CreateWorkspaceResult.serializer(),
+            ProtocolJson.encodeToString(JsonObject.serializer(), kotlinx.serialization.json.buildJsonObject {
+                put("name", kotlinx.serialization.json.JsonPrimitive(name))
+                put("gitInit", kotlinx.serialization.json.JsonPrimitive(gitInit))
+            }),
+            idem(),
+        )
+
     suspend fun signal(sessionId: String, terminate: Boolean) {
         request("POST", "/v1/sessions/$sessionId/signal", JsonObject.serializer(), encode(mapOf("signal" to if (terminate) "terminate" else "interrupt")), idem())
     }

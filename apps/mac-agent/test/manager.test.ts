@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, realpath } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AgentCommand } from '@codebridge/protocol';
 import type { AgentConfig, Workspace } from '../src/config.js';
@@ -219,5 +222,79 @@ describe('SessionManager', () => {
     await log.waitFor(
       (e) => e.sessionId === sessionId && e.event.kind === 'status' && e.event.status === 'killed',
     );
+  });
+});
+
+describe('workspace.create (new project from the phone)', () => {
+  let projects: string;
+  let added: Workspace[];
+  beforeEach(async () => {
+    projects = await realpath(await mkdtemp(path.join(os.tmpdir(), 'cb-mgr-projects-')));
+    cfg.policy.projectsRoot = projects;
+    cfg.policy.allowWorkspaceCreation = true;
+    added = [];
+    mgr = new SessionManager({
+      getConfig: () => cfg,
+      addWorkspace: async (w) => {
+        added.push(w);
+        cfg.workspaces.push(w);
+      },
+      secrets: new MemorySecretStore(),
+      sink: log.sink,
+      log: silentLog,
+    });
+  });
+
+  it('creates the folder, registers it as a workspace and returns it', async () => {
+    const ack = await run({ op: 'workspace.create', name: 'phone-made', gitInit: true });
+    expect(ack.ok).toBe(true);
+    const r = ack.result as {
+      workspace: { id: string; name: string; isGitRepo: boolean };
+      gitInit: boolean;
+    };
+    expect(r.workspace.name).toBe('phone-made');
+    expect(r.workspace.isGitRepo).toBe(true);
+    expect(r.gitInit).toBe(true);
+    expect(added).toHaveLength(1);
+    expect(added[0]!.path).toBe(path.join(projects, 'phone-made'));
+    // and it is immediately usable: a session can start in it
+    const sessionId = randomUUID();
+    const started = await run({
+      op: 'session.start',
+      sessionId,
+      workspaceId: r.workspace.id,
+      mode: 'command',
+      presetId: 'echo',
+      cols: 80,
+      rows: 24,
+    });
+    expect(started.ok).toBe(true);
+  });
+
+  it('is refused when the owner has turned it off', async () => {
+    cfg.policy.allowWorkspaceCreation = false;
+    const ack = await run({ op: 'workspace.create', name: 'nope', gitInit: false });
+    expect(ack).toMatchObject({ ok: false, error: { code: 'policy_denied' } });
+    expect(added).toHaveLength(0);
+  });
+
+  it('reports a duplicate name instead of reusing the folder', async () => {
+    expect((await run({ op: 'workspace.create', name: 'dup', gitInit: false })).ok).toBe(true);
+    const again = await run({ op: 'workspace.create', name: 'dup', gitInit: false });
+    expect(again).toMatchObject({ ok: false, error: { code: 'exists' } });
+    expect(added).toHaveLength(1);
+  });
+
+  it('stops at the workspace limit', async () => {
+    for (let i = 0; i < 100; i++)
+      cfg.workspaces.push({ ...ws, id: `ws_${String(i).padStart(12, '0')}` });
+    const ack = await run({ op: 'workspace.create', name: 'one-too-many', gitInit: false });
+    expect(ack).toMatchObject({ ok: false, error: { code: 'limit' } });
+  });
+
+  it('advertises whether the phone may create projects', () => {
+    expect(mgr.capabilities().canCreateWorkspaces).toBe(true);
+    cfg.policy.allowWorkspaceCreation = false;
+    expect(mgr.capabilities().canCreateWorkspaces).toBe(false);
   });
 });

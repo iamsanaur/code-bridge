@@ -135,3 +135,35 @@ import Testing
         #expect(await store.load() == nil)
     }
 }
+
+@Suite struct ProjectNameTests {
+    @Test func acceptsOrdinaryNames() {
+        for n in ["my-app", "App 2", "v1.2_final", "a", "  tidy  "] { #expect(isValidProjectName(n), "\(n)") }
+    }
+
+    @Test func rejectsPathsAndOddNames() {
+        for n in ["", "   ", "../escape", "a/b", "a\\b", "/etc", ".hidden", "..", "trailing.", "two..dots", "-dash",
+                  String(repeating: "a", count: 65), "semi;colon", "$(whoami)", "émoji🙂", "line\nbreak"] {
+            #expect(!isValidProjectName(n), "\(n)")
+        }
+    }
+
+    @Test func explainsTheProblem() {
+        #expect(projectNameError("a/b") != nil)
+        #expect(projectNameError("") == nil) // nothing typed yet
+        #expect(projectNameError("fine") == nil)
+    }
+
+    @Test func decodesCapabilitiesFromOldAndNewAgents() throws {
+        let old = #"{"pty":true,"anthropicKeyConfigured":false,"claudeCodeAvailable":true,"allowCustomCommands":false,"allowInteractiveShell":false}"#
+        let new = #"{"pty":true,"anthropicKeyConfigured":false,"claudeCodeAvailable":true,"allowCustomCommands":false,"allowInteractiveShell":false,"canCreateWorkspaces":true}"#
+        #expect(try JSONDecoder().decode(Capabilities.self, from: Data(old.utf8)).canCreateWorkspaces == nil)
+        #expect(try JSONDecoder().decode(Capabilities.self, from: Data(new.utf8)).canCreateWorkspaces == true)
+    }
+
+    @Test func decodesTheCreateResult() throws {
+        let json = #"{"workspace":{"id":"ws_1","name":"p","displayPath":"~/CodeBridge/p","isGitRepo":true},"gitInit":true}"#
+        let r = try JSONDecoder().decode(CreateWorkspaceResult.self, from: Data(json.utf8))
+        #expect(r.workspace.name == "p" && r.gitInit)
+    }
+}

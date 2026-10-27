@@ -91,6 +91,8 @@ public struct Capabilities: Codable, Equatable, Sendable {
     public var claudeCodeAvailable: Bool
     public var allowCustomCommands: Bool
     public var allowInteractiveShell: Bool
+    /// The owner allows creating new project folders from the phone. Older agents don't send it.
+    public var canCreateWorkspaces: Bool?
 }
 
 public struct WorkspaceInfo: Codable, Equatable, Identifiable, Sendable {
@@ -98,6 +100,12 @@ public struct WorkspaceInfo: Codable, Equatable, Identifiable, Sendable {
     public var name: String
     public var displayPath: String
     public var isGitRepo: Bool
+}
+
+public struct CreateWorkspaceResult: Codable, Equatable, Sendable {
+    public var workspace: WorkspaceInfo
+    /// False if git was requested but could not be initialised on the computer.
+    public var gitInit: Bool
 }
 
 public struct PresetInfo: Codable, Equatable, Identifiable, Sendable {

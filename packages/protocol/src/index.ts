@@ -196,7 +196,33 @@ const signalCommandSchema = z.object({
   signal: z.enum(['interrupt', 'terminate']),
 });
 
+/**
+ * A new project's folder name. The phone only ever supplies a name, never a path: the agent creates a brand-new
+ * folder with this name inside the projects folder the owner chose on the computer.
+ */
+export const projectNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9._ -]*$/,
+    'Use letters, numbers, spaces, dots, dashes and underscores',
+  )
+  .refine(
+    (n) => !n.includes('..') && !/[. ]$/.test(n),
+    'Names cannot contain ".." or end with a dot or space',
+  );
+
+export const createWorkspaceCommandSchema = z.object({
+  op: z.literal('workspace.create'),
+  name: projectNameSchema,
+  /** Run `git init` in the new folder. */
+  gitInit: z.boolean().default(true),
+});
+
 export const agentCommandSchema = z.discriminatedUnion('op', [
+  createWorkspaceCommandSchema,
   startSessionSchema,
   inputCommandSchema,
   resizeCommandSchema,
@@ -236,6 +262,13 @@ export const workspaceInfoSchema = z.object({
 });
 export type WorkspaceInfo = z.infer<typeof workspaceInfoSchema>;
 
+export const createWorkspaceResultSchema = z.object({
+  workspace: workspaceInfoSchema,
+  /** False if git was requested but could not be initialised (for example git is not installed). */
+  gitInit: z.boolean(),
+});
+export type CreateWorkspaceResult = z.infer<typeof createWorkspaceResultSchema>;
+
 export const presetInfoSchema = z.object({
   id: idSchema,
   label: z.string().max(128),
@@ -250,6 +283,8 @@ export const agentCapabilitiesSchema = z.object({
   claudeCodeAvailable: z.boolean(),
   allowCustomCommands: z.boolean(),
   allowInteractiveShell: z.boolean(),
+  /** The owner allows creating new project folders from the phone. */
+  canCreateWorkspaces: z.boolean().default(false),
 });
 export type AgentCapabilities = z.infer<typeof agentCapabilitiesSchema>;
 

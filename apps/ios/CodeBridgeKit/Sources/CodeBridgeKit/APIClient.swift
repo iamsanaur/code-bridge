@@ -220,6 +220,13 @@ public actor APIClient {
         try await request("POST", "/v1/devices/\(deviceId)/sessions", body: body, headers: idem())
     }
 
+    /// Starts a new project on the computer: a brand-new folder with this name inside the owner's projects folder.
+    /// Only a name is sent, never a path, and the computer refuses names that already exist.
+    public func createWorkspace(deviceId: String, name: String, gitInit: Bool) async throws -> CreateWorkspaceResult {
+        struct Body: Encodable { let name: String; let gitInit: Bool }
+        return try await request("POST", "/v1/devices/\(deviceId)/workspaces", body: Body(name: name, gitInit: gitInit), headers: idem())
+    }
+
     public func signal(_ id: String, terminate: Bool) async throws {
         try await send("POST", "/v1/sessions/\(id)/signal", body: ["signal": terminate ? "terminate" : "interrupt"], idempotent: true)
     }

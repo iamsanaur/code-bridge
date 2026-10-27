@@ -98,3 +98,20 @@ fun formatTokens(n: Long): String = when {
     n < 1_000_000 -> String.format(Locale.US, "%.1fk", n / 1000.0)
     else -> String.format(Locale.US, "%.2fM", n / 1_000_000.0)
 }
+
+/**
+ * Why a project name can't be used, or null if it's fine. Mirrors the computer's own rules so the person sees the
+ * problem while typing; the computer checks again.
+ */
+fun projectNameError(raw: String): String? {
+    val name = raw.trim()
+    if (name.isEmpty()) return null // nothing typed yet: no complaint
+    if (name.length > 64) return "Use 64 characters or fewer."
+    if (!name[0].let { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }) return "Start with a letter or number."
+    if (!name.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it in "._- " }) return "Use letters, numbers, spaces, dots, dashes and underscores."
+    if (name.contains("..")) return "Names can’t contain “..”."
+    if (name.endsWith(".")) return "Names can’t end with a dot."
+    return null
+}
+
+fun isValidProjectName(raw: String): Boolean = raw.trim().isNotEmpty() && projectNameError(raw) == null

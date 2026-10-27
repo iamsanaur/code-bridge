@@ -110,9 +110,13 @@ data class Capabilities(
     val claudeCodeAvailable: Boolean,
     val allowCustomCommands: Boolean,
     val allowInteractiveShell: Boolean,
+    /** The owner allows creating new project folders from the phone. Older agents don't send it. */
+    val canCreateWorkspaces: Boolean? = null,
 )
 
 @Serializable data class WorkspaceInfo(val id: String, val name: String, val displayPath: String, val isGitRepo: Boolean)
+
+@Serializable data class CreateWorkspaceResult(val workspace: WorkspaceInfo, val gitInit: Boolean)
 
 @Serializable data class PresetInfo(val id: String, val label: String, val argv: List<String>)
 

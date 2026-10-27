@@ -63,3 +63,13 @@ Use a dedicated Postgres role with privileges only on the CodeBridge database, T
 ## Reporting
 
 Please report vulnerabilities privately to the repository owner rather than in public issues.
+
+## Creating projects from the phone
+
+Workspaces were originally add-on-the-computer-only. The phone can now start a new project, under tight limits:
+
+- The command carries **only a name** (`workspace.create`). The location is never supplied by the phone: the agent creates the folder directly inside its own projects folder (`policy.projectsRoot`, default `~/CodeBridge`).
+- Names are validated by the shared schema and again on the computer (letters, numbers, spaces, `.`, `-`, `_`; no `..`, no separators, no leading dot, 64 characters, Windows reserved names refused).
+- The folder is created with a non-recursive `mkdir`, so an existing folder, file or symlink is **never adopted**; the real path is re-checked to be a plain directory inside the real projects folder.
+- It cannot widen access to existing data. At most 100 workspaces; the owner can turn it off (`allowWorkspaceCreation false`), and the agent advertises the setting so the app hides the button.
+- Every request is audited (`workspace.create`) on the relay.

@@ -3,6 +3,7 @@ package dev.codebridge.core
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -164,5 +165,38 @@ class ConnectLinkTest {
 
     @Test fun toleratesWhitespaceAndTrailingSlash() {
         assertEquals("https://x.dev", parseConnectLink("  codebridge://connect?server=https%3A%2F%2Fx.dev%2F&secret=s\n")?.server)
+    }
+}
+
+class ProjectNameTest {
+    @Test fun acceptsOrdinaryNames() {
+        listOf("my-app", "App 2", "v1.2_final", "a", "  tidy  ").forEach { assertTrue(isValidProjectName(it), it) }
+    }
+
+    @Test fun rejectsPathsAndOddNames() {
+        listOf(
+            "", "   ", "../escape", "a/b", "a\\b", "/etc", ".hidden", "..", "trailing.", "two..dots", "-dash",
+            "a".repeat(65), "semi;colon", "\$(whoami)", "émoji🙂", "line\nbreak",
+        ).forEach { assertFalse(isValidProjectName(it), it) }
+    }
+
+    @Test fun explainsTheProblem() {
+        assertNotNull(projectNameError("a/b"))
+        assertNull(projectNameError(""))
+        assertNull(projectNameError("fine"))
+    }
+
+    @Test fun decodesCapabilitiesFromOldAndNewAgents() {
+        val old = """{"pty":true,"anthropicKeyConfigured":false,"claudeCodeAvailable":true,"allowCustomCommands":false,"allowInteractiveShell":false}"""
+        val new = old.dropLast(1) + ""","canCreateWorkspaces":true}"""
+        assertNull(ProtocolJson.decodeFromString(Capabilities.serializer(), old).canCreateWorkspaces)
+        assertEquals(true, ProtocolJson.decodeFromString(Capabilities.serializer(), new).canCreateWorkspaces)
+    }
+
+    @Test fun decodesTheCreateResult() {
+        val json = """{"workspace":{"id":"ws_1","name":"p","displayPath":"~/CodeBridge/p","isGitRepo":true},"gitInit":true}"""
+        val r = ProtocolJson.decodeFromString(CreateWorkspaceResult.serializer(), json)
+        assertEquals("p", r.workspace.name)
+        assertTrue(r.gitInit)
     }
 }

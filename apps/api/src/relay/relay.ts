@@ -555,7 +555,7 @@ export function assertAck(ack: AckResult): unknown {
   const status =
     code === 'device_offline' || code === 'timeout'
       ? 503
-      : code === 'requires_confirmation'
+      : code === 'requires_confirmation' || code === 'exists'
         ? 409
         : code === 'forbidden' || code === 'policy_denied'
           ? 403

@@ -52,6 +52,13 @@ export const configSchema = z.object({
       allowInteractiveShell: z.boolean().default(false),
       /** Allow headless Claude Code sessions (uses the `claude` CLI's own login). */
       allowClaudeCode: z.boolean().default(true),
+      /**
+       * Allow the phone to create a NEW project folder (name only, never a path) inside `projectsRoot`. It cannot
+       * reach any existing folder this way, so it does not widen what the phone can access.
+       */
+      allowWorkspaceCreation: z.boolean().default(true),
+      /** Where phone-created projects live. Defaults to ~/CodeBridge. */
+      projectsRoot: z.string().optional(),
       presets: z.array(presetSchema).default(DEFAULT_PRESETS),
       /** Extra environment variable names passed to child processes. */
       envPassthrough: z.array(z.string().regex(/^[A-Z_][A-Z0-9_]*$/)).default([]),
@@ -69,6 +76,7 @@ export const configSchema = z.object({
       allowCustomCommands: false,
       allowInteractiveShell: false,
       allowClaudeCode: true,
+      allowWorkspaceCreation: true,
       presets: DEFAULT_PRESETS,
       envPassthrough: [],
       maxSessionMinutes: 240,

@@ -4,6 +4,8 @@ import type { AgentConfig, Workspace } from '../config.js';
 import { AgentSession, sdkMessagesClient, type MessagesClient } from '../coding/agentSession.js';
 import { ClaudeCodeSession, findClaudeCli } from '../coding/claudeCodeSession.js';
 import { gitDiff, gitStatus } from '../git.js';
+import { createProject, ProjectError } from '../projects.js';
+import { prepareWorkspace, workspaceInfo } from '../workspaces.js';
 import type { Logger } from '../log.js';
 import { buildChildEnv, classifyCommand, resolveExecutable } from '../policy.js';
 import { defaultShell } from '../platform.js';
@@ -20,6 +22,8 @@ export interface Ack {
 
 export interface ManagerDeps {
   getConfig: () => AgentConfig;
+  /** Persists a workspace created from the phone. */
+  addWorkspace?: (ws: Workspace) => Promise<void>;
   secrets: SecretStore;
   /** Delivers a sequenced event towards the relay. */
   sink: (ev: SequencedEvent) => void;
@@ -34,6 +38,9 @@ export interface ManagerDeps {
  * re-validated here against the Mac's own configuration (workspace allowlist,
  * presets, custom-command and shell switches, deny lists).
  */
+/** A phone cannot grow the workspace list without bound. */
+const MAX_WORKSPACES = 100;
+
 export class SessionManager {
   private readonly sessions = new Map<string, BaseSession>();
   private readonly acks = new Map<string, Ack>();
@@ -140,6 +147,8 @@ export class SessionManager {
         for (const ev of events) this.deps.sink(ev);
         return { oldestAvailableSeq, replayed: events.length };
       }
+      case 'workspace.create':
+        return this.createWorkspace(c);
       case 'git.status':
         return gitStatus(this.workspace(c.workspaceId), this.deps.getConfig().policy).catch(
           (e: Error) => {
@@ -157,6 +166,32 @@ export class SessionManager {
             );
           },
         );
+    }
+  }
+
+  private async createWorkspace(c: Extract<AgentCommand, { op: 'workspace.create' }>) {
+    const config = this.deps.getConfig();
+    if (!config.policy.allowWorkspaceCreation || !this.deps.addWorkspace) {
+      throw new SessionError(
+        'policy_denied',
+        'Creating projects from the phone is turned off on this computer. Turn it on with `codebridge-agent policy set allowWorkspaceCreation true`.',
+      );
+    }
+    if (config.workspaces.length >= MAX_WORKSPACES)
+      throw new SessionError('limit', `This computer already has ${MAX_WORKSPACES} workspaces`);
+    try {
+      const { dir, gitInit } = await createProject({
+        policy: config.policy,
+        name: c.name,
+        gitInit: c.gitInit,
+      });
+      const ws = await prepareWorkspace(dir);
+      await this.deps.addWorkspace(ws);
+      this.deps.log.info('project created from the phone', { name: ws.name });
+      return { workspace: workspaceInfo(ws), gitInit };
+    } catch (err) {
+      if (err instanceof ProjectError) throw new SessionError(err.code, err.message);
+      throw err;
     }
   }
 
@@ -296,6 +331,7 @@ export class SessionManager {
       pty: loadPty() !== null,
       allowCustomCommands: policy.allowCustomCommands,
       allowInteractiveShell: policy.allowInteractiveShell,
+      canCreateWorkspaces: policy.allowWorkspaceCreation,
       claudeCodeAvailable: policy.allowClaudeCode && findClaudeCli(policy) !== null,
     };
   }

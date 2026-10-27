@@ -105,3 +105,27 @@ public func makeConnectLink(server: URL, secret: String) -> String {
 private func isLocalHost(_ host: String) -> Bool {
     host == "localhost" || host == "127.0.0.1" || host == "::1" || host.hasSuffix(".local")
 }
+
+// MARK: New projects
+
+/// Why a project name can't be used, or nil if it's fine. Mirrors the computer's own rules so the person
+/// sees the problem while typing; the computer checks again.
+public func projectNameError(_ raw: String) -> String? {
+    let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    if name.isEmpty { return nil } // nothing typed yet: no complaint
+    if name.count > 64 { return "Use 64 characters or fewer." }
+    guard let first = name.unicodeScalars.first, first.isASCII, CharacterSet.alphanumerics.contains(first) else {
+        return "Start with a letter or number."
+    }
+    let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._- ")
+    if name.unicodeScalars.contains(where: { !allowed.contains($0) }) {
+        return "Use letters, numbers, spaces, dots, dashes and underscores."
+    }
+    if name.contains("..") { return "Names can’t contain “..”." }
+    if name.hasSuffix(".") { return "Names can’t end with a dot." }
+    return nil
+}
+
+public func isValidProjectName(_ raw: String) -> Bool {
+    !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && projectNameError(raw) == nil
+}
