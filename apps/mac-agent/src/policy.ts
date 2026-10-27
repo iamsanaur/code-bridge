@@ -274,7 +274,7 @@ export function isSensitivePath(rel: string): boolean {
       'secrets.json',
       '.git-credentials',
     ].includes(base) ||
-    rel.split(path.sep).includes('.ssh') ||
-    rel.split(path.sep).includes('.aws')
+    rel.split(/[\\/]/).includes('.ssh') ||
+    rel.split(/[\\/]/).includes('.aws')
   );
 }

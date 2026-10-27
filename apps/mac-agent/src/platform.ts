@@ -112,11 +112,13 @@ export function killTree(
 ): void {
   if (!pid) return;
   if (isWindows) {
-    // Windows has no signals: SIGINT/SIGTERM ask nicely first, SIGKILL forces.
-    const args = ['/PID', String(pid), '/T'];
-    if (sig === 'SIGKILL') args.push('/F');
+    // Windows has no signals, and console programs ignore the polite WM_CLOSE that plain
+    // `taskkill` sends, so every request force-kills the tree. That matches Unix, where
+    // SIGINT ends a headless `claude` or a pipe process too. Terminal (PTY) sessions send
+    // Ctrl-C as input instead and only reach here to end the session.
+    const args = ['/PID', String(pid), '/T', '/F'];
     execFile('taskkill', args, { windowsHide: true }, (err) => {
-      if (err && sig === 'SIGKILL') fallback?.(sig);
+      if (err) fallback?.(sig);
     });
     return;
   }

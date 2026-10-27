@@ -56,7 +56,7 @@ describe('buildChildEnv', () => {
 });
 
 describe('resolveExecutable', () => {
-  it('resolves names on absolute PATH entries only', () => {
+  it.skipIf(process.platform === 'win32')('resolves names on absolute PATH entries only', () => {
     expect(resolveExecutable('sh', '/bin:/usr/bin')).toMatch(/\/sh$/);
     expect(resolveExecutable('sh', '.:relative')).toBeNull();
     expect(resolveExecutable('/bin/sh', '/bin')).toBeNull();
@@ -72,6 +72,7 @@ describe('isSensitivePath', () => {
     'id_rsa',
     '.npmrc',
     'home/.ssh/config',
+    'home\\.ssh\\config',
     '.aws/credentials',
   ])('%s is sensitive', (p) => expect(isSensitivePath(p)).toBe(true));
   it.each(['src/index.ts', 'README.md', 'environment.ts'])('%s is not sensitive', (p) =>
