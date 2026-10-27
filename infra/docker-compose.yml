@@ -1,0 +1,41 @@
+# Local development stack: Postgres + the CodeBridge API.
+#   docker compose -f infra/docker-compose.yml up --build
+# The Mac agent runs natively on your Mac (it needs your files, tools and Keychain).
+# Redis is intentionally absent: the relay is single-instance (see docs/DEPLOYMENT.md).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: codebridge
+      POSTGRES_PASSWORD: codebridge
+      POSTGRES_DB: codebridge
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U codebridge']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://codebridge:codebridge@postgres:5432/codebridge
+      PUBLIC_URL: http://localhost:8080
+      # Development-only key. Generate your own: openssl rand -base64 32
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-ZGV2LW9ubHktZGV2LW9ubHktZGV2LW9ubHktZGV2LW8=}
+      CORS_ORIGINS: http://localhost:8081
+      LOG_LEVEL: info
+    ports:
+      - '127.0.0.1:8080:8080'
+
+volumes:
+  pgdata:

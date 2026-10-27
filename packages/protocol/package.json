@@ -18,5 +18,8 @@
   },
   "dependencies": {
     "zod": "^4.1.0"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

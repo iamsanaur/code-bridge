@@ -10,3 +10,4 @@ apps/mobile/web-build/
 apps/mobile/dist/
 .DS_Store
 .turbo/
+e2e-artifacts/

@@ -2,15 +2,18 @@ import { loadEnv } from './env.js';
 import { createPool } from './db/pool.js';
 import { migrate } from './db/migrate.js';
 import { buildApp } from './app.js';
+import { startMaintenance } from './maintenance.js';
 
 const env = loadEnv();
 const db = createPool(env.DATABASE_URL);
 await migrate(db, (m) => console.log(m));
 const app = await buildApp({ env, db });
 app.ctx.cloud.startSweeper();
+const stopMaintenance = startMaintenance(db, app.log);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
+  stopMaintenance();
   await app.close();
   await db.end();
   process.exit(0);

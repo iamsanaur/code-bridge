@@ -122,3 +122,23 @@ describe('authentication', () => {
     expect((await api(ctx, 'GET', '/v1/me', { token: u.token })).status).toBe(401);
   });
 });
+
+describe('data retention', () => {
+  it('purges expired pairings, stale idempotency records and old revoked sessions', async () => {
+    const { runMaintenance } = await import('../src/maintenance.js');
+    const u = await registerUser(ctx);
+    await ctx.db.query(
+      `UPDATE auth_sessions SET revoked_at = now() - interval '31 days' WHERE user_id = $1`,
+      [u.userId],
+    );
+    await ctx.db.query(
+      `INSERT INTO pairings (user_code, poll_secret_hash, device_name, status, expires_at) VALUES ('ZZZZZZZZ', '\\x00', 'old', 'expired', now() - interval '2 days')`,
+    );
+    const r = await runMaintenance(ctx.db);
+    expect(r.pairings).toBeGreaterThanOrEqual(1);
+    expect(r.authSessions).toBeGreaterThanOrEqual(1);
+    expect(
+      (await ctx.db.query('SELECT 1 FROM auth_sessions WHERE user_id = $1', [u.userId])).rowCount,
+    ).toBe(0);
+  });
+});

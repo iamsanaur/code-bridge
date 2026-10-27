@@ -28,5 +28,9 @@
     "@types/qrcode": "^1.5.5",
     "@types/ws": "^8.18.0",
     "tsx": "^4.20.0"
-  }
+  },
+  "files": [
+    "dist/src",
+    "scripts"
+  ]
 }

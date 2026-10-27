@@ -1,0 +1,6 @@
+**/node_modules
+**/dist
+**/.expo
+apps/mobile
+e2e-artifacts
+.git
