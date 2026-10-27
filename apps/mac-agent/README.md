@@ -58,3 +58,7 @@ npm uninstall -g codebridge-agent
 ```
 
 Set `CODEBRIDGE_HOME` to move the config directory.
+
+## License
+
+MIT

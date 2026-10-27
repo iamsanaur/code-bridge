@@ -94,3 +94,7 @@ Tests marked **mocked** in their file headers use fakes for Anthropic's APIs; `a
 - **Claude Code sessions**: use whatever the `claude` CLI is logged in with on your Mac. CodeBridge does not touch those credentials.
 - **Cloud sessions**: Anthropic Managed Agents, billed to the key you store for cloud use (model tokens at list price plus session runtime, $0.08 per active hour at the time of writing). Each session has a hard dollar budget enforced by Anthropic.
 - **CodeBridge server**: you host it; its costs are your infrastructure costs.
+
+## License
+
+[MIT](LICENSE)

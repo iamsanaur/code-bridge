@@ -33,7 +33,8 @@
   },
   "files": [
     "dist/cli.js",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "description": "CodeBridge agent: run and supervise coding sessions on your own Mac or Windows PC from your phone.",
   "keywords": [
@@ -52,5 +53,15 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamsanaur/code-bridge.git",
+    "directory": "apps/mac-agent"
+  },
+  "homepage": "https://github.com/iamsanaur/code-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/iamsanaur/code-bridge/issues"
   }
 }
