@@ -1,8 +1,15 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { redactSecrets } from '@codebridge/shared';
 import type { AgentConfig, Workspace } from '../config.js';
 import { buildChildEnv, resolveExecutable } from '../policy.js';
+import {
+  claudeFallbackDirs,
+  killTree,
+  platformSpawnOptions,
+  prepareClaudeSpawn,
+} from '../platform.js';
 import { BaseSession, SessionError, type EventSink } from '../sessions/base.js';
 
 /**
@@ -19,7 +26,12 @@ import { BaseSession, SessionError, type EventSink } from '../sessions/base.js';
  *   Claude.ai or Claude Code session.
  */
 export function findClaudeCli(policy: AgentConfig['policy']): string | null {
-  return resolveExecutable('claude', buildChildEnv(policy).PATH!);
+  const pathVar = buildChildEnv(policy).PATH!;
+  return (
+    resolveExecutable('claude', pathVar) ??
+    // Native installer location, which is not always on the service's PATH.
+    resolveExecutable('claude', claudeFallbackDirs().join(path.delimiter))
+  );
 }
 
 interface StreamLine {
@@ -70,11 +82,23 @@ export class ClaudeCodeSession extends BaseSession {
     this.emit({ kind: 'user.prompt', text });
     const args = ['-p', text, '--output-format', 'stream-json', '--verbose'];
     if (this.cliSessionId) args.push('--resume', this.cliSessionId);
-    const child = spawn(this.cliPath, args, {
+    let target;
+    try {
+      target = prepareClaudeSpawn(this.cliPath, args);
+    } catch (err) {
+      this.emit({
+        kind: 'error',
+        code: 'claude_cli_error',
+        message: (err as Error).message,
+        retryable: false,
+      });
+      return;
+    }
+    const child = spawn(target.file, target.args, {
       cwd: this.workspace.path,
       env: buildChildEnv(this.config.policy),
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: true,
+      ...platformSpawnOptions(),
     });
     this.child = child;
     this.setStatus('running');
@@ -177,11 +201,7 @@ export class ClaudeCodeSession extends BaseSession {
   private kill(sig: NodeJS.Signals): void {
     const c = this.child;
     if (!c?.pid) return;
-    try {
-      process.kill(-c.pid, sig);
-    } catch {
-      c.kill(sig);
-    }
+    killTree(c.pid, sig, (s) => c.kill(s));
   }
 
   signal(kind: 'interrupt' | 'terminate'): void {

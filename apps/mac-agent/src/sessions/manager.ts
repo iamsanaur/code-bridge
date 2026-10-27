@@ -6,6 +6,7 @@ import { ClaudeCodeSession, findClaudeCli } from '../coding/claudeCodeSession.js
 import { gitDiff, gitStatus } from '../git.js';
 import type { Logger } from '../log.js';
 import { buildChildEnv, classifyCommand, resolveExecutable } from '../policy.js';
+import { defaultShell } from '../platform.js';
 import { loadPty } from '../process/backend.js';
 import type { SecretStore } from '../secrets.js';
 import { BaseSession, SessionError } from './base.js';
@@ -220,21 +221,18 @@ export class SessionManager {
         if (!policy.allowInteractiveShell) {
           throw new SessionError(
             'policy_denied',
-            'Interactive shells are disabled on this Mac. Enable with `codebridge-agent policy set allowInteractiveShell true`.',
+            'Interactive shells are disabled on this computer. Enable with `codebridge-agent policy set allowInteractiveShell true`.',
           );
         }
-        const shell =
-          process.env.SHELL && process.env.SHELL.startsWith('/') && existsSync(process.env.SHELL)
-            ? process.env.SHELL
-            : '/bin/zsh';
+        const shell = defaultShell();
         session = new ProcessSession(c.sessionId, ws, 'shell', sink, {
-          file: shell,
-          args: ['-l'],
+          file: shell.file,
+          args: shell.args,
           env: buildChildEnv(policy),
           cols: c.cols,
           rows: c.rows,
           pty: true,
-          label: `${shell} -l`,
+          label: [shell.file, ...shell.args].join(' '),
           maxMinutes: policy.maxSessionMinutes,
         });
         break;

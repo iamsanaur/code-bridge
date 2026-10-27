@@ -1,5 +1,8 @@
 import { spawn as spawnChild } from 'node:child_process';
+import { chmodSync, existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { killTree, platformSpawnOptions, prepareSpawn } from '../platform.js';
 
 export interface ProcExit {
   exitCode: number | null;
@@ -30,7 +33,7 @@ export interface SpawnOptions {
 interface NodePty {
   spawn(
     file: string,
-    args: string[],
+    args: string[] | string,
     opts: { name: string; cols: number; rows: number; cwd: string; env: NodeJS.ProcessEnv },
   ): {
     pid: number;
@@ -44,11 +47,33 @@ interface NodePty {
 
 let ptyModule: NodePty | null | undefined;
 
+/**
+ * node-pty's prebuilt `spawn-helper` must be executable. Its install script sets that, but
+ * package managers that skip install scripts (pnpm 10, npm with allowScripts) leave it
+ * unset and every terminal then fails with `posix_spawnp failed`.
+ */
+function ensureSpawnHelperExecutable(require: NodeRequire): void {
+  if (process.platform === 'win32') return;
+  try {
+    const prebuilds = path.join(
+      path.dirname(require.resolve('node-pty/package.json')),
+      'prebuilds',
+    );
+    for (const dir of readdirSync(prebuilds)) {
+      const helper = path.join(prebuilds, dir, 'spawn-helper');
+      if (existsSync(helper)) chmodSync(helper, 0o755);
+    }
+  } catch {
+    // not installed, or a layout we do not recognise: loading it below reports the real problem
+  }
+}
+
 /** Loads node-pty if it is installed and built for this platform. */
 export function loadPty(): NodePty | null {
   if (ptyModule !== undefined) return ptyModule;
   try {
     const require = createRequire(import.meta.url);
+    ensureSpawnHelperExecutable(require);
     ptyModule = require('node-pty') as NodePty;
   } catch {
     ptyModule = null;
@@ -64,9 +89,11 @@ const SIGNAL_NAMES: Record<number, string> = {
 };
 
 export function spawnProcess(o: SpawnOptions): ProcHandle {
+  const target = prepareSpawn(o.file, o.args);
   const pty = o.pty ? loadPty() : null;
   if (pty) {
-    const p = pty.spawn(o.file, o.args, {
+    // node-pty on Windows takes a command-line string when we built the line ourselves.
+    const p = pty.spawn(target.file, target.verbatim ? target.args.join(' ') : target.args, {
       name: 'xterm-256color',
       cols: o.cols,
       rows: o.rows,
@@ -86,25 +113,24 @@ export function spawnProcess(o: SpawnOptions): ProcHandle {
         ),
       write: (d) => p.write(d),
       resize: (c, r) => p.resize(c, r),
-      kill: (sig) => {
-        try {
-          process.kill(-p.pid, sig); // pty children lead their own session/process group
-        } catch {
+      kill: (sig) =>
+        // pty children lead their own session/process group (Unix) or are killed as a tree (Windows)
+        killTree(p.pid, sig, () => {
           try {
             p.kill(sig);
           } catch {
             // already gone
           }
-        }
-      },
+        }),
     };
   }
 
   // Fallback: pipes (no TTY). Interactive programs may behave differently.
-  const child = spawnChild(o.file, o.args, {
+  const child = spawnChild(target.file, target.args, {
     cwd: o.cwd,
     env: o.env,
-    detached: true,
+    ...platformSpawnOptions(),
+    windowsVerbatimArguments: target.verbatim,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   child.stdout.setEncoding('utf8');
@@ -130,12 +156,6 @@ export function spawnProcess(o: SpawnOptions): ProcHandle {
       if (child.stdin.writable) child.stdin.write(d);
     },
     resize: () => undefined,
-    kill: (sig) => {
-      try {
-        if (child.pid) process.kill(-child.pid, sig);
-      } catch {
-        child.kill(sig);
-      }
-    },
+    kill: (sig) => killTree(child.pid, sig, (s) => child.kill(s)),
   };
 }

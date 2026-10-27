@@ -14,6 +14,7 @@ import {
   resolveExecutable,
   type Risk,
 } from '../policy.js';
+import { killTree as killProcessTree, platformSpawnOptions, prepareSpawn } from '../platform.js';
 import { relativeToWorkspace, resolveInWorkspace } from '../workspaces.js';
 
 /**
@@ -489,11 +490,19 @@ async function runCommand(
   const file = resolveExecutable(argv[0]!, env.PATH!);
   if (!file) return fail(`${argv[0]} not found on PATH`);
 
+  let target;
+  try {
+    target = prepareSpawn(file, argv.slice(1));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+
   return new Promise<ToolResult>((resolve) => {
-    const child = spawn(file, argv.slice(1), {
+    const child = spawn(target.file, target.args, {
       cwd: ctx.workspace.path,
       env,
-      detached: true,
+      ...platformSpawnOptions(),
+      windowsVerbatimArguments: target.verbatim,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';
@@ -503,13 +512,7 @@ async function runCommand(
     };
     child.stdout.on('data', append);
     child.stderr.on('data', append);
-    const killTree = (sig: NodeJS.Signals) => {
-      try {
-        if (child.pid) process.kill(-child.pid, sig);
-      } catch {
-        child.kill(sig);
-      }
-    };
+    const killTree = (sig: NodeJS.Signals) => killProcessTree(child.pid, sig, (s) => child.kill(s));
     const timer = setTimeout(() => {
       out += `\n[timed out after ${input.timeout_seconds}s]`;
       killTree('SIGKILL');

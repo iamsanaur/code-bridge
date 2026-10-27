@@ -42,6 +42,30 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  agent-windows:
+    name: Agent on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @codebridge/protocol --filter @codebridge/shared build
+      - run: pnpm --filter codebridge-agent typecheck
+      - run: pnpm --filter codebridge-agent test
+      - name: Pack and run the published artifact
+        shell: bash
+        run: |
+          pnpm --filter codebridge-agent bundle
+          mkdir "$RUNNER_TEMP/pack" "$RUNNER_TEMP/clean"
+          (cd apps/mac-agent && npm pack --pack-destination "$RUNNER_TEMP/pack")
+          cd "$RUNNER_TEMP/clean" && npm init -y >/dev/null
+          npm install "$RUNNER_TEMP"/pack/codebridge-agent-*.tgz
+          CODEBRIDGE_HOME="$RUNNER_TEMP/home" npx codebridge-agent status
+
   android:
     name: Android (Kotlin core + Compose app)
     runs-on: ubuntu-latest

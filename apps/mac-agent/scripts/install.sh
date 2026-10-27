@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Installs the CodeBridge agent for the current (non-root) macOS user from this checkout.
+# Most people should run `npm i -g codebridge-agent` instead; this is for building from source.
 #   ./apps/mac-agent/scripts/install.sh
 # Result:
 #   ~/Library/Application Support/CodeBridge/agent   self-contained agent install
@@ -28,19 +29,23 @@ BIN_DIR="${CODEBRIDGE_BIN_DIR:-$HOME/.local/bin}"
 
 echo "Building from $REPO"
 cd "$REPO"
-pnpm install --frozen-lockfile --filter @codebridge/mac-agent...
+pnpm install --frozen-lockfile --filter codebridge-agent...
 pnpm --filter @codebridge/protocol --filter @codebridge/shared build
-pnpm --filter @codebridge/mac-agent build
+pnpm --filter codebridge-agent bundle
 
 echo "Installing to $DEST"
 rm -rf "$DEST"
-pnpm --filter @codebridge/mac-agent deploy --prod --legacy "$DEST"
+mkdir -p "$DEST"
+PACK_DIR="$(mktemp -d)"
+trap 'rm -rf "$PACK_DIR"' EXIT
+TARBALL="$(cd apps/mac-agent && npm pack --silent --pack-destination "$PACK_DIR")"
+npm install --prefix "$DEST" --omit=dev --no-audit --no-fund "$PACK_DIR/$TARBALL"
 chmod 700 "$(dirname "$DEST")"
 
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/codebridge-agent" <<WRAP
 #!/usr/bin/env bash
-exec "$(command -v node)" "$DEST/dist/src/cli.js" "\$@"
+exec "$(command -v node)" "$DEST/node_modules/codebridge-agent/dist/cli.js" "\$@"
 WRAP
 chmod 755 "$BIN_DIR/codebridge-agent"
 

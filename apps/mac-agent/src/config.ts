@@ -1,15 +1,12 @@
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import { DEFAULT_MODEL } from '@codebridge/shared';
+import { defaultConfigDir, isWindows } from './platform.js';
 
-/** Where the agent keeps its (non-secret) configuration. Secrets live in the Keychain. */
+/** Where the agent keeps its (non-secret) configuration. Secrets live in the OS credential store. */
 export function configDir(): string {
-  if (process.env.CODEBRIDGE_HOME) return process.env.CODEBRIDGE_HOME;
-  if (process.platform === 'darwin')
-    return path.join(os.homedir(), 'Library', 'Application Support', 'CodeBridge');
-  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'codebridge');
+  return process.env.CODEBRIDGE_HOME ?? defaultConfigDir();
 }
 
 export const presetSchema = z.object({
@@ -28,7 +25,7 @@ export const DEFAULT_PRESETS: Preset[] = [
   { id: 'npm-run-lint', label: 'npm run lint', argv: ['npm', 'run', 'lint'] },
   { id: 'pnpm-test', label: 'pnpm test', argv: ['pnpm', 'test'] },
   { id: 'make-test', label: 'make test', argv: ['make', 'test'] },
-  { id: 'pytest', label: 'pytest', argv: ['python3', '-m', 'pytest'] },
+  { id: 'pytest', label: 'pytest', argv: [isWindows ? 'python' : 'python3', '-m', 'pytest'] },
   { id: 'swift-test', label: 'swift test', argv: ['swift', 'test'] },
 ];
 

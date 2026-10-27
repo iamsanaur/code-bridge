@@ -59,13 +59,13 @@ pnpm exec tsx src/cli.ts policy set allowCustomCommands true   # optional, high 
 pnpm exec tsx src/cli.ts run
 ```
 
-Install for daily use (macOS, as your user):
+Install for daily use. Most people: `npm install -g codebridge-agent` (macOS and Windows). From source on macOS:
 
 ```bash
 ./apps/mac-agent/scripts/install.sh      # builds & installs to ~/Library/Application Support/CodeBridge/agent
 codebridge-agent pair --server https://codebridge.example.com
 codebridge-agent workspace add ~/code/project
-codebridge-agent service install         # LaunchAgent: starts at login, restarts on crash
+codebridge-agent service install         # LaunchAgent (macOS) / scheduled task (Windows): starts at login, restarts on crash
 codebridge-agent status
 ```
 
@@ -107,7 +107,7 @@ CODEBRIDGE_IT_API_URL=http://localhost:8080 CODEBRIDGE_JVM_ONLY=1 ./gradlew :cor
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
 | protocol / shared unit tests                                                                  | `pnpm --filter @codebridge/protocol test` etc.                                                                     | —                                                                                              |
 | API integration (real Postgres, real WebSockets) incl. end-to-end with the real agent runtime | `pnpm --filter @codebridge/api test`                                                                               | Postgres at `TEST_DATABASE_URL` (default `postgres://postgres@localhost:5432/codebridge_test`) |
-| Mac agent (real PTYs, temp workspaces; mocked Messages API)                                   | `pnpm --filter @codebridge/mac-agent test`                                                                         | `git`, a POSIX shell                                                                           |
+| Mac agent (real PTYs, temp workspaces; mocked Messages API)                                   | `pnpm --filter codebridge-agent test`                                                                              | `git`, a POSIX shell                                                                           |
 | Kotlin core (JVM) + contract test against a running API                                       | `CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test` in `apps/android` (`CODEBRIDGE_IT_API_URL` enables the contract test) | JDK 17+                                                                                        |
 | CodeBridgeKit (Swift)                                                                         | `swift test --package-path apps/ios/CodeBridgeKit`                                                                 | macOS + Xcode 26                                                                               |
 | Live Managed Agents test (**real, billable**)                                                 | `CODEBRIDGE_LIVE_ANTHROPIC_KEY=sk-ant-… pnpm --filter @codebridge/api exec vitest run test/cloud.live.test.ts`     | Anthropic key with Managed Agents access                                                       |

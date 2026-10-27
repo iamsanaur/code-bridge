@@ -272,6 +272,7 @@ struct PairView: View {
                 Section {
                     Text("On your Mac, run `codebridge-agent pair --server …`, then scan the QR code it shows or type its code.")
                         .font(.footnote)
+                    InstallTip()
                     if QRScannerView.isAvailable {
                         Button { scanning = true } label: { Label("Scan QR code", systemImage: "qrcode.viewfinder") }
                             .buttonStyle(.glass)
@@ -319,5 +320,39 @@ struct PairView: View {
             return
         }
         runner.run { claimed = try await app.api.claimPairing(code: normalized) }
+    }
+}
+
+/// How to get the agent running on a Mac. The agent drives the user's own `claude` CLI, so their Claude plan
+/// login stays on the Mac and never passes through the relay or this phone.
+struct InstallTip: View {
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                step(1, "Install Node.js 22+ on your Mac or Windows PC (nodejs.org)", "node --version")
+                step(2, "Install the CodeBridge agent", "npm install -g codebridge-agent")
+                step(3, "Optional: install Claude Code and sign in with your Claude plan", "claude")
+                step(4, "Pair this computer, then allow a project folder", "codebridge-agent pair --server <relay URL>\ncodebridge-agent workspace add <project folder>")
+                step(5, "Keep it running in the background", "codebridge-agent service install")
+                Text("Your Claude login stays on your computer. It is never sent to CodeBridge or this phone.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.top, 6)
+        } label: {
+            Label("How to install the agent (Mac or Windows)", systemImage: "lightbulb")
+                .font(.subheadline.weight(.semibold))
+        }
+    }
+
+    private func step(_ n: Int, _ title: String, _ command: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(n). \(title)").font(.footnote.weight(.medium))
+            Text(command)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        }
     }
 }

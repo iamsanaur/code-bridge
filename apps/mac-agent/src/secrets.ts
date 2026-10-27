@@ -20,8 +20,8 @@ interface KeyringEntry {
 }
 
 /**
- * macOS Keychain (via @napi-rs/keyring, which uses the Security framework).
- * Items are stored in the user's login keychain under service `dev.codebridge.agent`.
+ * The OS credential store, via @napi-rs/keyring: the login Keychain on macOS (Security
+ * framework) and Credential Manager on Windows. Items use the service `dev.codebridge.agent`.
  */
 export class KeychainStore implements SecretStore {
   readonly kind = 'keychain';

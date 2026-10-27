@@ -1,7 +1,9 @@
-import { accessSync, constants, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { AgentConfig, Preset } from './config.js';
+import { isWindows, resolveExecutable, WINDOWS_BASE_ENV } from './platform.js';
+
+export { resolveExecutable };
 
 export type Risk = 'low' | 'medium' | 'high';
 
@@ -42,6 +44,27 @@ const DENIED = new Set([
   'umount',
   'fdisk',
   'newfs_apfs',
+  // Windows
+  'runas',
+  'diskpart',
+  'format',
+  'bcdedit',
+  'reg',
+  'regedit',
+  'schtasks',
+  'sc',
+  'net',
+  'netsh',
+  'cipher',
+  'takeown',
+  'icacls',
+  'wmic',
+  'mshta',
+  'certutil',
+  'bitsadmin',
+  'taskkill',
+  'wevtutil',
+  'vssadmin',
 ]);
 
 /** Programs that can execute arbitrary code or affect things outside the workspace. */
@@ -80,6 +103,21 @@ const RISKY = new Set([
   'ruby',
   'php',
   'find',
+  // Windows
+  'del',
+  'erase',
+  'rd',
+  'move',
+  'copy',
+  'xcopy',
+  'robocopy',
+  'cmd',
+  'powershell',
+  'pwsh',
+  'wsl',
+  'start',
+  'wscript',
+  'cscript',
 ]);
 
 const RISKY_SUBCOMMANDS: Record<string, string[]> = {
@@ -141,17 +179,20 @@ export function classifyCommand(argv: string[]): CommandDecision {
       reason: 'Executables must be given by name, not path',
     };
   }
-  if (DENIED.has(prog))
+  // Case and extension never change which program runs (APFS and NTFS are case-insensitive,
+  // and Windows resolves `Shutdown.EXE` and `shutdown` to the same file).
+  const name = prog.toLowerCase().replace(/\.(exe|cmd|bat|com|ps1)$/, '');
+  if (DENIED.has(name))
     return { decision: 'deny', risk: 'high', reason: `${prog} is never allowed from CodeBridge` };
   if (argv.some((a) => a.includes('\0')))
     return { decision: 'deny', risk: 'high', reason: 'Invalid argument' };
-  if (RISKY.has(prog))
+  if (RISKY.has(name))
     return {
       decision: 'confirm',
       risk: 'high',
       reason: `${prog} can modify or delete files or run arbitrary code`,
     };
-  const subs = RISKY_SUBCOMMANDS[prog];
+  const subs = RISKY_SUBCOMMANDS[name];
   if (subs) {
     const firstArg = args.find((a) => !a.startsWith('-') || subs.includes(a));
     if (subs.includes('*') || (firstArg && subs.includes(firstArg))) {
@@ -175,7 +216,18 @@ export function matchPreset(presets: Preset[], argv: string[]): Preset | undefin
 }
 
 /** Environment variables that are always passed to child processes. */
-const BASE_ENV = ['HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'TZ'];
+const BASE_ENV = [
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'TMPDIR',
+  'TZ',
+  ...(isWindows ? WINDOWS_BASE_ENV : []),
+];
 
 const SECRETISH =
   /(SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE|CREDENTIAL|SESSION|COOKIE|AUTH)/i;
@@ -195,30 +247,15 @@ export function buildChildEnv(
     if (SECRETISH.test(k)) continue; // never pass secret-looking variables, even if configured
     if (process.env[k]) env[k] = process.env[k];
   }
-  env.PATH = policy.path ?? process.env.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin';
+  env.PATH =
+    policy.path ??
+    process.env.PATH ??
+    (isWindows ? 'C:\\Windows\\System32;C:\\Windows' : '/usr/bin:/bin:/usr/sbin:/sbin');
   env.TERM = 'xterm-256color';
   env.COLORTERM = 'truecolor';
   env.CODEBRIDGE = '1';
   env.HOME ??= os.homedir();
   return { ...env, ...extra };
-}
-
-/** Resolves an executable name against PATH. Returns null if not found/executable. */
-export function resolveExecutable(name: string, pathVar: string): string | null {
-  if (name.includes('/')) return null;
-  for (const dir of pathVar.split(path.delimiter)) {
-    if (!dir || !path.isAbsolute(dir)) continue; // ignore relative PATH entries like "."
-    const candidate = path.join(dir, name);
-    try {
-      if (statSync(candidate).isFile()) {
-        accessSync(candidate, constants.X_OK);
-        return candidate;
-      }
-    } catch {
-      // keep looking
-    }
-  }
-  return null;
 }
 
 /** Files whose contents are likely secret; reading them requires explicit approval. */

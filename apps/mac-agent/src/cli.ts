@@ -6,14 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { AgentRuntime } from './agent.js';
 import { ConfigStore, configDir, type AgentConfig } from './config.js';
 import { apiRequest } from './http.js';
-import { installService, plistPath, uninstallService } from './launchd.js';
+import { isWindows } from './platform.js';
+import { installAutostart, uninstallAutostart } from './service.js';
 import { createLogger } from './log.js';
 import { pair } from './pair.js';
 import { createSecretStore } from './secrets.js';
 import { AGENT_VERSION } from './version.js';
 import { prepareWorkspace, workspaceInfo } from './workspaces.js';
 
-const HELP = `codebridge-agent ${AGENT_VERSION} — run coding sessions on this Mac from your phone
+const HELP = `codebridge-agent ${AGENT_VERSION} — run coding sessions on this computer from your phone
 
 Usage:
   codebridge-agent pair --server <https://api.example.com> [--name "My Mac"]
@@ -22,10 +23,10 @@ Usage:
   codebridge-agent workspace add <dir> [--allow-home]
   codebridge-agent workspace list
   codebridge-agent workspace remove <id>
-  codebridge-agent credentials set           Store an Anthropic API key in the Keychain (for the coding agent)
+  codebridge-agent credentials set           Store an Anthropic API key in the system credential store (for the coding agent)
   codebridge-agent credentials status|clear
   codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode> <true|false>
-  codebridge-agent service install|uninstall Manage the per-user LaunchAgent
+  codebridge-agent service install|uninstall Start at login (LaunchAgent on macOS, scheduled task on Windows)
   codebridge-agent unpair                    Revoke this Mac and delete its credential
 
 Configuration: ${configDir()}
@@ -77,6 +78,8 @@ async function readSecret(prompt: string): Promise<string> {
 }
 
 function loginShellPath(): string | undefined {
+  // Windows has no login shell: the user's PATH is already in this process's environment.
+  if (isWindows) return process.env.PATH;
   try {
     const shell = process.env.SHELL ?? '/bin/zsh';
     return (
@@ -145,7 +148,7 @@ async function main(argv: string[]): Promise<number> {
       );
       console.log(`Secret store:  ${s.kind}`);
       console.log(
-        `Anthropic key: ${hasKey ? 'stored in Keychain' : 'not set (coding agent unavailable)'}`,
+        `Anthropic key: ${hasKey ? 'stored in the system credential store' : 'not set (coding agent unavailable)'}`,
       );
       printPolicy(c);
       console.log('Workspaces:');
@@ -233,13 +236,12 @@ async function main(argv: string[]): Promise<number> {
       if (sub === 'install') {
         const cli = realpathSync(fileURLToPath(import.meta.url));
         const c = await store.load();
-        const p = await installService(cli, c.policy.path ?? loginShellPath() ?? '/usr/bin:/bin');
-        console.log(`Installed LaunchAgent ${p}. The agent now starts at login.`);
+        const fallbackPath = isWindows ? (process.env.PATH ?? '') : '/usr/bin:/bin';
+        console.log(await installAutostart(cli, c.policy.path ?? loginShellPath() ?? fallbackPath));
         return 0;
       }
       if (sub === 'uninstall') {
-        await uninstallService();
-        console.log(`Removed ${plistPath()}.`);
+        console.log(await uninstallAutostart());
         return 0;
       }
       return usage();

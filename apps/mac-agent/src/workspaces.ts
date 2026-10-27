@@ -5,28 +5,54 @@ import os from 'node:os';
 import path from 'node:path';
 import type { WorkspaceInfo } from '@codebridge/protocol';
 import type { Workspace } from './config.js';
+import { isWindows } from './platform.js';
 
 export class PathError extends Error {
   readonly code = 'path_denied';
 }
 
 /** Directories that may never be registered as workspaces (too broad or system-owned). */
-const FORBIDDEN_ROOTS = [
-  '/',
-  '/System',
-  '/Library',
-  '/usr',
-  '/bin',
-  '/sbin',
-  '/etc',
-  '/private',
-  '/var',
-  '/opt',
-  '/Applications',
-  '/Volumes',
-  '/dev',
-  '/tmp',
-];
+const FORBIDDEN_ROOTS = isWindows ? windowsForbiddenRoots() : unixForbiddenRoots();
+
+function windowsForbiddenRoots(): string[] {
+  const env = process.env;
+  const drive = env.SystemDrive ?? 'C:';
+  return [
+    env.SystemRoot ?? `${drive}\\Windows`,
+    env.ProgramFiles ?? `${drive}\\Program Files`,
+    env['ProgramFiles(x86)'] ?? `${drive}\\Program Files (x86)`,
+    env.ProgramData ?? `${drive}\\ProgramData`,
+    `${drive}\\Users`,
+  ];
+}
+
+function unixForbiddenRoots(): string[] {
+  return [
+    '/',
+    '/System',
+    '/Library',
+    '/usr',
+    '/bin',
+    '/sbin',
+    '/etc',
+    '/private',
+    '/private/etc', // macOS: /etc, /var and /tmp are symlinks into /private
+    '/private/var',
+    '/private/tmp',
+    '/var',
+    '/opt',
+    '/Applications',
+    '/Volumes',
+    '/dev',
+    '/tmp',
+  ];
+}
+
+/** Windows paths compare case-insensitively; so does the default macOS volume, but realpath already normalises that. */
+const same = (a: string, b: string) => (isWindows ? a.toLowerCase() === b.toLowerCase() : a === b);
+
+/** A filesystem or drive root (`/`, `C:\\`): never a workspace. */
+const isFsRoot = (p: string) => path.parse(p).root === p;
 
 async function canonical(p: string): Promise<string> {
   return realpath(p);
@@ -40,7 +66,7 @@ export async function prepareWorkspace(
   input: string,
   opts: { allowHome?: boolean } = {},
 ): Promise<Workspace> {
-  const abs = path.resolve(input.replace(/^~(?=$|\/)/, os.homedir()));
+  const abs = path.resolve(input.replace(/^~(?=$|[\\/])/, os.homedir()));
   let real: string;
   try {
     real = await canonical(abs);
@@ -50,9 +76,9 @@ export async function prepareWorkspace(
   const st = await stat(real);
   if (!st.isDirectory()) throw new PathError(`Not a directory: ${real}`);
   const realHome = await canonical(os.homedir()).catch(() => os.homedir());
-  if (FORBIDDEN_ROOTS.includes(real))
+  if (isFsRoot(real) || FORBIDDEN_ROOTS.some((r) => same(r, real)))
     throw new PathError(`Refusing to register a system directory: ${real}`);
-  if (real === realHome && !opts.allowHome) {
+  if (same(real, realHome) && !opts.allowHome) {
     throw new PathError(
       'Refusing to register your entire home directory. Pick a project folder, or pass --allow-home.',
     );
@@ -68,7 +94,10 @@ export async function prepareWorkspace(
 export function workspaceInfo(ws: Workspace): WorkspaceInfo {
   const home = os.homedir();
   const displayPath =
-    ws.path === home || ws.path.startsWith(home + path.sep)
+    same(ws.path, home) ||
+    (isWindows ? ws.path.toLowerCase() : ws.path).startsWith(
+      (isWindows ? home.toLowerCase() : home) + path.sep,
+    )
       ? `~${ws.path.slice(home.length)}`
       : ws.path;
   return {

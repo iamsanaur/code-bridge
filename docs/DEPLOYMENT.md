@@ -22,9 +22,27 @@ docker run -d --name codebridge-api -p 127.0.0.1:8080:8080 \
 
 > The Dockerfile and Compose file are provided but were not executed in the environment this code was written in (no Docker daemon). The compiled server (`node dist/src/server.js`) was run and verified.
 
-## Mac agent
+## Agent (macOS and Windows)
 
-Distributed from source for now: `apps/mac-agent/scripts/install.sh` then `codebridge-agent service install`. Code-signed, notarised packages (or a Homebrew formula) are future work.
+Published to npm as [`codebridge-agent`](https://www.npmjs.com/package/codebridge-agent) (Node 22+):
+
+```bash
+npm install -g codebridge-agent
+codebridge-agent pair --server https://codebridge.example.com
+codebridge-agent workspace add <dir>
+codebridge-agent service install     # LaunchAgent (macOS) or per-user scheduled task (Windows)
+```
+
+The package is a single bundled file (`apps/mac-agent/scripts/bundle.mjs`) with the private workspace packages
+inlined. Release checklist:
+
+1. Bump `version` in `apps/mac-agent/package.json` **and** `AGENT_VERSION` in `src/version.ts`.
+2. `pnpm --filter codebridge-agent test` on macOS and Windows (CI runs both).
+3. `npm pack` in `apps/mac-agent`, install the tarball into an empty directory and run `codebridge-agent status`.
+4. `npm publish` (the package is public; `prepack` builds the bundle).
+
+Building from source on macOS: `apps/mac-agent/scripts/install.sh`. Code-signed, notarised packages, an MSI and a
+Homebrew formula are future work.
 
 ## Phone apps
 

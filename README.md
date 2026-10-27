@@ -49,8 +49,8 @@ cp apps/api/.env.example apps/api/.env                         # set DATABASE_UR
 pnpm dev:api                                                   # http://localhost:8080 (runs migrations on start)
 
 # 2. Mac agent (on your Mac, as your normal user — never root)
-pnpm --filter @codebridge/mac-agent exec tsx src/cli.ts pair --server http://localhost:8080
-pnpm --filter @codebridge/mac-agent exec tsx src/cli.ts workspace add ~/code/my-project
+pnpm --filter codebridge-agent exec tsx src/cli.ts pair --server http://localhost:8080
+pnpm --filter codebridge-agent exec tsx src/cli.ts workspace add ~/code/my-project
 pnpm dev:agent                                                 # = codebridge-agent run
 
 # 3. Phone apps
@@ -60,14 +60,14 @@ cd apps/android && ./gradlew :app:installDebug   # Android Studio / SDK 36; emul
 
 On the phone: create an account → **Pair a Mac** → scan the QR code (or type the code) → approve → confirm on the Mac → open the Mac → pick a workspace → **New session** → choose a preset → watch the output live.
 
-For a permanent install on a Mac use `apps/mac-agent/scripts/install.sh` and `codebridge-agent service install` (LaunchAgent). See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+For a permanent install on a Mac or Windows PC use `npm install -g codebridge-agent` and `codebridge-agent service install` (LaunchAgent on macOS, scheduled task on Windows). See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Repository layout
 
 ```
 apps/
   api/          Fastify API + WebSocket relay + Postgres migrations + cloud provider adapter
-  mac-agent/    macOS agent & CLI (pairing, PTY sessions, coding agent, Claude Code provider, launchd)
+  mac-agent/    macOS/Windows agent & CLI, published as `codebridge-agent` (pairing, PTY sessions, coding agent, Claude Code provider, launchd / Task Scheduler)
   ios/          native iOS app: SwiftUI + Liquid Glass (CodeBridge.xcodeproj) and the CodeBridgeKit Swift package
   android/      native Android app: Jetpack Compose + Material 3 (:app) and a pure-Kotlin core (:core)
 packages/
