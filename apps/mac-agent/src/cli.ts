@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { parseConnectLink } from '@codebridge/shared';
 import { AgentRuntime } from './agent.js';
 import { ConfigStore, configDir, type AgentConfig } from './config.js';
 import { apiRequest } from './http.js';
@@ -18,6 +19,7 @@ const HELP = `codebridge-agent ${AGENT_VERSION} — run coding sessions on this 
 
 Usage:
   codebridge-agent pair --server <https://api.example.com> [--name "My Mac"]
+  codebridge-agent connect '<codebridge://connect?…>'   Join your own relay (link or QR from codebridge-relay)
   codebridge-agent run                       Run the agent in the foreground
   codebridge-agent status                    Show pairing, workspaces and policy
   codebridge-agent workspace add <dir> [--allow-home]
@@ -115,6 +117,29 @@ async function main(argv: string[]): Promise<number> {
           print: (s) => console.log(s),
           confirm: async (q) => /^y(es)?$/i.test((await ask(`${q} [y/N] `)).trim()),
         },
+      });
+      if (ok) {
+        await store.update((c) => {
+          c.policy.path ??= loginShellPath();
+        });
+      }
+      return ok ? 0 : 1;
+    }
+    case 'connect': {
+      const link = parseConnectLink(sub ?? '');
+      if (!link) {
+        console.error(
+          "Usage: codebridge-agent connect '<codebridge://connect?server=…&secret=…>'\nGet the link by running `codebridge-relay link` (or `codebridge-relay fly`).",
+        );
+        return 1;
+      }
+      const ok = await pair({
+        serverUrl: link.server,
+        name: flag(argv, '--name'),
+        store,
+        secrets: secrets(),
+        ownerSecret: link.secret,
+        io: { print: (s) => console.log(s), confirm: async () => true },
       });
       if (ok) {
         await store.update((c) => {

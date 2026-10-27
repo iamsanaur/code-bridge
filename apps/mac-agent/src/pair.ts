@@ -34,6 +34,11 @@ export async function pair(opts: {
   store: ConfigStore;
   secrets: SecretStore;
   io: PairIO;
+  /**
+   * Personal relay: the owner secret from the QR/link. The agent signs in as the owner and
+   * approves its own pairing, so no phone and no account confirmation are involved.
+   */
+  ownerSecret?: string;
 }): Promise<boolean> {
   const { io } = opts;
   const serverUrl = assertSecureUrl(opts.serverUrl).toString().replace(/\/$/, '');
@@ -45,12 +50,25 @@ export async function pair(opts: {
     platform: process.platform,
   });
 
-  io.print('\nOpen CodeBridge on your phone → Pair a Mac, then scan this code:\n');
-  io.print(await QRCode.toString(start.qrPayload, { type: 'terminal', small: true }));
-  io.print(`Or enter this code manually:  ${start.userCode}`);
-  io.print(
-    `The code expires at ${new Date(start.expiresAt).toLocaleTimeString()}. Waiting for approval…\n`,
-  );
+  if (opts.ownerSecret) {
+    const owner = await apiRequest<{ tokens: { accessToken: string } }>(
+      serverUrl,
+      'POST',
+      '/v1/auth/connect',
+      { secret: opts.ownerSecret },
+    );
+    const token = owner.tokens.accessToken;
+    await apiRequest(serverUrl, 'POST', '/v1/pairing/claim', { code: start.userCode }, token);
+    await apiRequest(serverUrl, 'POST', `/v1/pairing/${start.pairingId}/approve`, undefined, token);
+    io.print('Connected to your relay. Finishing…');
+  } else {
+    io.print('\nOpen CodeBridge on your phone → Pair a Mac, then scan this code:\n');
+    io.print(await QRCode.toString(start.qrPayload, { type: 'terminal', small: true }));
+    io.print(`Or enter this code manually:  ${start.userCode}`);
+    io.print(
+      `The code expires at ${new Date(start.expiresAt).toLocaleTimeString()}. Waiting for approval…\n`,
+    );
+  }
 
   const deadline = Date.parse(start.expiresAt);
   while (Date.now() < deadline + 5_000) {
@@ -76,9 +94,11 @@ export async function pair(opts: {
     }
     const approved = res;
     // Approved: the Mac owner confirms the account before we keep the credential.
-    const ok = await io.confirm(
-      `This Mac will be controlled by the CodeBridge account ${approved.accountEmail ?? '(unknown)'}. Is that your account?`,
-    );
+    const ok =
+      opts.ownerSecret !== undefined ||
+      (await io.confirm(
+        `This Mac will be controlled by the CodeBridge account ${approved.accountEmail ?? '(unknown)'}. Is that your account?`,
+      ));
     if (!ok) {
       await apiRequest(
         serverUrl,

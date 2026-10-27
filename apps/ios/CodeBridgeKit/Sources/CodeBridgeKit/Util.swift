@@ -67,3 +67,41 @@ public func formatTokens(_ n: Int) -> String {
     default: return String(format: "%.2fM", Double(n) / 1_000_000)
     }
 }
+
+// MARK: Personal relay links
+
+/// What `codebridge-relay` puts in its QR code: `codebridge://connect?server=<url>&secret=<owner secret>`.
+/// It carries the owner secret, so it is treated like a password and never logged.
+public struct ConnectLink: Equatable, Sendable {
+    public let server: URL
+    public let secret: String
+    public init(server: URL, secret: String) { self.server = server; self.secret = secret }
+
+    /// The host shown to the user before connecting.
+    public var host: String { server.host() ?? server.absoluteString }
+}
+
+/// Parses a scanned or pasted connect link. Rejects other schemes, missing parts and
+/// servers that are neither `https` nor local (plain `http` is only allowed on this network).
+public func parseConnectLink(_ text: String) -> ConnectLink? {
+    guard let comps = URLComponents(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+          comps.scheme == "codebridge", comps.host == "connect",
+          let server = comps.queryItems?.first(where: { $0.name == "server" })?.value,
+          let secret = comps.queryItems?.first(where: { $0.name == "secret" })?.value,
+          !secret.isEmpty, let url = URL(string: server.hasSuffix("/") ? String(server.dropLast()) : server),
+          let host = url.host(), url.scheme == "https" || (url.scheme == "http" && isLocalHost(host))
+    else { return nil }
+    return ConnectLink(server: url, secret: secret)
+}
+
+public func makeConnectLink(server: URL, secret: String) -> String {
+    var allowed = CharacterSet.alphanumerics
+    allowed.insert(charactersIn: "-._~")
+    let s = server.absoluteString.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    let k = secret.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    return "codebridge://connect?server=\(s)&secret=\(k)"
+}
+
+private func isLocalHost(_ host: String) -> Bool {
+    host == "localhost" || host == "127.0.0.1" || host == "::1" || host.hasSuffix(".local")
+}

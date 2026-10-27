@@ -1,100 +1,208 @@
+<div align="center">
+
 # CodeBridge
 
-Control coding sessions on **your own Mac** from your iPhone or Android phone, from anywhere, and optionally run separate **CodeBridge-managed cloud sessions** on Anthropic Managed Agents.
+**Run and supervise coding sessions on your own Mac or PC, from your phone, from anywhere.**
 
-> **The Mac session executes on your Mac. The cloud session executes in an Anthropic-hosted sandbox.** CodeBridge never moves your local projects to a cloud machine, and every session in the app is labelled **Local Mac** or **Managed cloud**.
+No account. No server to rent. Scan a QR code and you're connected.
 
-```
-┌──────────────┐   HTTPS + WSS (auth'd)   ┌─────────────────────┐   WSS, outbound from the Mac   ┌──────────────────────┐
-│ Native apps  │ ───────────────────────▶ │  CodeBridge API     │ ◀──────────────────────────── │  Mac agent (your user)│
-│ SwiftUI iOS, │ ◀─────────────────────── │  relay + Postgres   │ ──────────────────────────────▶│  PTY · coding agent  │
-│ Compose Andr.│   live events, approvals │  (Fastify)          │   commands (policy-checked     │  workspace allowlist │
-└──────────────┘                          └──────────┬──────────┘    again on the Mac)           └──────────────────────┘
-                                                     │ Managed Agents API (user's key, encrypted at rest)
-                                                     ▼
-                                          ┌─────────────────────┐
-                                          │ Anthropic cloud     │  separate, isolated sandbox — no access to your Mac
-                                          └─────────────────────┘
-```
+[![License: MIT](https://img.shields.io/badge/license-MIT-2f6feb.svg)](LICENSE)
+[![iOS 26](https://img.shields.io/badge/iOS-26%20Liquid%20Glass-000000.svg?logo=apple)](apps/ios)
+[![Android 9+](https://img.shields.io/badge/Android-9%2B-3ddc84.svg?logo=android&logoColor=white)](apps/android)
+[![macOS · Windows](https://img.shields.io/badge/agent-macOS%20%C2%B7%20Windows-6e56cf.svg)](apps/mac-agent)
 
-## What works today
+<br />
 
-| Area                                                                                                                                                                  | Status                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accounts: register, login, rotating refresh tokens with reuse detection, logout, account deletion                                                                     | ✅ implemented & tested                                                                                                                      |
-| Pairing: short-lived, single-use code/QR (RFC 8628-style), local confirmation on the Mac, revocation, credential rotation                                             | ✅ implemented & tested                                                                                                                      |
-| Relay: outbound authenticated agent WebSocket, sequenced events, replay after reconnects, de-duplication, heartbeats, rate & size limits                              | ✅ implemented & tested                                                                                                                      |
-| Local sessions: approved workspaces, preset commands in a PTY, terminal input, interrupt/stop, exit codes, "lost" detection after restarts                            | ✅ implemented & tested end-to-end                                                                                                           |
-| Local policy: custom commands and interactive shells off by default; deny-list; risky-command confirmation; env sanitisation; symlink-safe path confinement           | ✅ implemented & tested                                                                                                                      |
-| Coding agent (Anthropic Messages API, your key in the Mac Keychain): streaming, bounded tool loop, approvals for edits/commands, cancellation, usage & cost estimates | ✅ implemented; tested against a **mocked** API (no live key was available)                                                                  |
-| Claude Code CLI provider (headless `claude -p`, uses the CLI's own login)                                                                                             | ✅ implemented; output parsing tested with mocked CLI output                                                                                 |
-| Managed cloud sessions (Anthropic Managed Agents beta): create, stream, approve tools, prompt, interrupt, end (archive), budgets, quotas, cleanup                     | ✅ implemented; tested with a **mocked** provider; opt-in live test included but **not run** (no key)                                        |
-| **iOS app** (SwiftUI, iOS 26, Liquid Glass): all screens, glass tab bar with connection accessory, floating glass terminal key bar & composer, VisionKit QR pairing   | ✅ `CodeBridgeKit` unit tests pass and the app builds for the iOS Simulator in CI (Xcode on macOS 26); **not yet run on a device/simulator** |
-| **Android app** (Kotlin, Jetpack Compose, Material 3): all screens, Keystore-encrypted tokens, Google code scanner pairing                                            | ✅ Kotlin core: 22 tests incl. a contract test against the real API (local + CI); `:app` builds in CI; **not yet run on a device/emulator**  |
-| Docker Compose / API Dockerfile                                                                                                                                       | ✍️ written, **not run** here (no Docker daemon in the build environment)                                                                     |
+<img src="docs/screenshots/ios-welcome.png" width="23%" alt="iOS welcome screen" />
+<img src="docs/screenshots/ios-home.png" width="23%" alt="iOS home with a computer online" />
+<img src="docs/screenshots/android-welcome-dark.png" width="23%" alt="Android welcome screen, dark" />
+<img src="docs/screenshots/android-home-dark.png" width="23%" alt="Android home with a computer online, dark" />
 
-See [docs/PLAN.md](docs/PLAN.md) for milestones and remaining work, and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
+</div>
 
-## Quick start (local development)
+---
 
-Prerequisites: Node.js 22+, pnpm 10 (`corepack enable`), PostgreSQL 16 (or Docker).
+## What it is
+
+CodeBridge puts a terminal, git and **Claude Code** for your own computer in your pocket. Start a session on your Mac or Windows PC, watch the output live, approve risky commands from your phone, and walk away.
+
+- **Your code never leaves your computer.** Commands run on your machine, inside folders you approved on that machine. Optional cloud sessions run in an isolated Anthropic sandbox and are always labelled as such.
+- **You run your own relay.** There is nothing for anyone to host for you and no account to create. The QR code your relay shows is the whole sign-in.
+- **Your Claude plan works.** Claude Code runs on your computer with its own login, so sessions use your own Claude subscription. CodeBridge never sees that login.
+
+## Get started
+
+You need three things: a relay (the small program that links phone and computer), the agent on your computer, and the app on your phone.
+
+### 1. Start your relay and connect your computer
+
+On the computer you want to control (Node.js 22+):
 
 ```bash
-pnpm install
-pnpm build                                   # builds packages/protocol and packages/shared
-
-# 1. Database + API
-docker compose -f infra/docker-compose.yml up -d postgres      # or use your own Postgres
-cp apps/api/.env.example apps/api/.env                         # set DATABASE_URL and CREDENTIAL_ENCRYPTION_KEY
-pnpm dev:api                                                   # http://localhost:8080 (runs migrations on start)
-
-# 2. Mac agent (on your Mac, as your normal user — never root)
-pnpm --filter codebridge-agent exec tsx src/cli.ts pair --server http://localhost:8080
-pnpm --filter codebridge-agent exec tsx src/cli.ts workspace add ~/code/my-project
-pnpm dev:agent                                                 # = codebridge-agent run
-
-# 3. Phone apps
-open apps/ios/CodeBridge.xcodeproj          # Xcode 26+, run on an iOS 26 device/simulator (set CODEBRIDGE_API_URL)
-cd apps/android && ./gradlew :app:installDebug   # Android Studio / SDK 36; emulator reaches the API at 10.0.2.2
+npx -y codebridge-relay start --tunnel cloudflare --with-agent
 ```
 
-On the phone: create an account → **Pair a Mac** → scan the QR code (or type the code) → approve → confirm on the Mac → open the Mac → pick a workspace → **New session** → choose a preset → watch the output live.
+This starts the relay, opens a free secure public address through Cloudflare (install [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) first), joins this computer, and prints a **QR code**. Prefer a permanent address? Use your own Fly.io account instead (about $2 a month):
 
-For a permanent install on a Mac or Windows PC use `npm install -g codebridge-agent` and `codebridge-agent service install` (LaunchAgent on macOS, scheduled task on Windows). See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+```bash
+npx -y codebridge-relay fly --with-agent
+```
 
-## Repository layout
+The app has a **Set up a relay** screen with both commands, a Copy button and a _Send to my computer_ button.
+
+### 2. Install the app and scan
+
+<table>
+  <tr>
+    <td><b>Android</b></td>
+    <td>Download <a href="releases/CodeBridge-0.1.0.apk"><code>CodeBridge-0.1.0.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
+  </tr>
+  <tr>
+    <td><b>iOS</b></td>
+    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.1.0.ipa"><code>CodeBridge-0.1.0.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
+  </tr>
+</table>
+
+Open the app, tap **Scan QR code**, scan the code from step 1, confirm the relay, done. Your computer shows up as **Online**.
+
+### 3. Run a session
+
+Choose your computer, pick a project folder, and start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
+
+## Screenshots
+
+<table>
+  <tr>
+    <th align="center">Set up a relay</th>
+    <th align="center">Home</th>
+    <th align="center">Settings</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/ios-setup.png" width="260" alt="iOS set up a relay" /></td>
+    <td><img src="docs/screenshots/ios-home.png" width="260" alt="iOS home" /></td>
+    <td><img src="docs/screenshots/ios-settings.png" width="260" alt="iOS settings with the Liquid Glass tab bar" /></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><sub><b>iOS 26</b>: native SwiftUI with Liquid Glass</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/android-setup-dark.png" width="260" alt="Android set up a relay" /></td>
+    <td><img src="docs/screenshots/android-home-light.png" width="260" alt="Android home, light" /></td>
+    <td><img src="docs/screenshots/android-settings-dark.png" width="260" alt="Android settings, dark" /></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><sub><b>Android</b>: Jetpack Compose with a glass control layer, in light and dark</sub></td>
+  </tr>
+</table>
+
+## How it works
+
+```
+   ┌───────────────┐        HTTPS + WSS         ┌─────────────────────┐      WSS, outbound       ┌───────────────────────┐
+   │  Your phone   │ ─────────────────────────▶ │   Your relay        │ ◀─────────────────────── │  Your Mac or PC       │
+   │  iOS · Android│ ◀───────────────────────── │   one process, your │ ───────────────────────▶ │  codebridge-agent     │
+   └───────────────┘   live output, approvals   │   own address       │   commands (re-checked   │  terminal · git ·     │
+                                                └─────────────────────┘   on the computer)       │  Claude Code          │
+                                                                                                  └───────────────────────┘
+```
+
+1. The **agent** on your computer connects **outbound** to your relay. No ports are opened on your computer.
+2. The **relay** forwards messages between your phone and your agent. It is one small process with an embedded database, run by you.
+3. The **phone** joins by scanning the relay's QR code, which carries a random secret. That secret is stored in the iOS Keychain or Android Keystore and silently reconnects after a restart.
+
+Every command is checked again on the computer against the policy you set there, so a compromised relay or phone cannot widen what is allowed.
+
+## Safety
+
+|                  |                                                                                                                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Folders**      | Only folders you register on the computer are reachable. System folders and your whole home directory are refused. Paths are symlink-safe.                              |
+| **Commands**     | Phone commands are limited to presets unless you turn on custom commands. Risky programs need approval on the phone, and some (`sudo`, `diskpart`, `reg`, …) never run. |
+| **Shells**       | Interactive shells are off until you enable them on the computer.                                                                                                       |
+| **Secrets**      | Stored in the OS credential store (Keychain, Credential Manager, Android Keystore). Child processes get a minimal environment.                                          |
+| **Relay link**   | The QR code is a password: it gives full control of every computer on that relay. Don't share a screenshot of it.                                                       |
+| **Confirmation** | Opening a connect link asks you to confirm the relay before anything is sent to it.                                                                                     |
+
+Read [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
+
+## Platforms
+
+| Component       | Where                                            | Notes                                                                                                                    |
+| --------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Agent**       | macOS 13+, Windows 10 (1809) / 11                | `npm install -g codebridge-agent`. Starts at login through a LaunchAgent (macOS) or a per-user scheduled task (Windows). |
+| **Relay**       | Any computer with Node.js 22+, Docker, or Fly.io | `codebridge-relay`, or the container image. Embedded Postgres, no database server.                                       |
+| **iOS app**     | iOS 26+                                          | SwiftUI, Liquid Glass, VisionKit QR scanning.                                                                            |
+| **Android app** | Android 9+ (API 28)                              | Jetpack Compose, Keystore-encrypted secrets, Google code scanner.                                                        |
+
+### iOS installation
+
+iOS only installs apps that Apple has signed for your device. Your options:
+
+- **Build it yourself** (free): open `apps/ios/CodeBridge.xcodeproj` in Xcode 26, choose your device and Apple ID under _Signing & Capabilities_, and run. A free Apple ID's builds last 7 days.
+- **The `.ipa` in [`releases/`](releases)** is signed with a development certificate and installs only on the devices registered in its provisioning profile. Everyone else needs to build it, or sideload it with a tool that re-signs it with their own Apple ID.
+- **TestFlight or the App Store** is the way to reach everyone else. It requires an Apple Developer Program membership ($99 a year), which the project owner would set up.
+
+### Verify a download
+
+```bash
+cd releases && shasum -a 256 -c SHA256SUMS
+```
+
+The APK is signed with the project's release key. Check its certificate with
+`apksigner verify --print-certs CodeBridge-0.1.0.apk`.
+
+## Under the hood
 
 ```
 apps/
-  api/          Fastify API + WebSocket relay + Postgres migrations + cloud provider adapter
-  mac-agent/    macOS/Windows agent & CLI, published as `codebridge-agent` (pairing, PTY sessions, coding agent, Claude Code provider, launchd / Task Scheduler)
-  ios/          native iOS app: SwiftUI + Liquid Glass (CodeBridge.xcodeproj) and the CodeBridgeKit Swift package
-  android/      native Android app: Jetpack Compose + Material 3 (:app) and a pure-Kotlin core (:core)
+  api/          codebridge-relay: Fastify relay + WebSocket hub + embedded or external Postgres
+  mac-agent/    codebridge-agent: pairing, terminals, git, Claude Code provider, autostart (macOS · Windows)
+  ios/          SwiftUI app + the CodeBridgeKit Swift package
+  android/      Jetpack Compose app (:app) and a pure-Kotlin core (:core)
 packages/
-  protocol/     zod schemas for every message crossing a trust boundary, shared DTOs and limits
-  shared/       secret redaction, terminal model, backoff, pricing estimates
+  protocol/     zod schemas for every message that crosses a trust boundary
+  shared/       secret redaction, terminal model, connect links, backoff
 docs/           ARCHITECTURE, SECURITY, API, DEVELOPMENT, DEPLOYMENT, PLAN
-infra/          docker-compose.yml, api.Dockerfile
+infra/          relay.Dockerfile, docker-compose.yml
 ```
 
-## Tests
+### Run from source
 
 ```bash
-pnpm test        # protocol, shared, api (needs Postgres: TEST_DATABASE_URL), mac-agent
-pnpm test:android                    # Kotlin core (JVM); add CODEBRIDGE_IT_API_URL=http://localhost:8080 for the contract test
-swift test --package-path apps/ios/CodeBridgeKit   # on macOS
+pnpm install && pnpm build
+
+pnpm --filter codebridge-relay relay start                    # relay on http://localhost:8080
+codebridge-agent connect '<link the relay prints>'            # or: pnpm --filter codebridge-agent exec tsx src/cli.ts connect '<link>'
+open apps/ios/CodeBridge.xcodeproj                            # Xcode 26+
+cd apps/android && ./gradlew :app:installDebug                # Android SDK 36; the emulator reaches the host at 10.0.2.2
+```
+
+### Tests
+
+```bash
+pnpm test                                          # protocol, shared, relay (Postgres or embedded), agent
+swift test --package-path apps/ios/CodeBridgeKit   # iOS core
+cd apps/android && CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test
 pnpm lint && pnpm typecheck && pnpm format:check
 ```
 
-Tests marked **mocked** in their file headers use fakes for Anthropic's APIs; `apps/api/test/cloud.live.test.ts` is the only test that calls Anthropic for real and runs only when `CODEBRIDGE_LIVE_ANTHROPIC_KEY` is set.
+The relay's suite runs against both real Postgres and the embedded database. CI also runs the agent on Windows.
+
+### Shared relay with accounts
+
+Teams can still run one shared relay with email accounts (`RELAY_MODE=multi`, `codebridge-relay serve`). See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Billing
 
-- **Local coding agent**: calls the Anthropic Messages API with the key stored in your Mac's Keychain; Anthropic bills that key. CodeBridge shows token usage and an estimate at list price.
-- **Claude Code sessions**: use whatever the `claude` CLI is logged in with on your Mac. CodeBridge does not touch those credentials.
-- **Cloud sessions**: Anthropic Managed Agents, billed to the key you store for cloud use (model tokens at list price plus session runtime, $0.08 per active hour at the time of writing). Each session has a hard dollar budget enforced by Anthropic.
-- **CodeBridge server**: you host it; its costs are your infrastructure costs.
+- **Terminal and git sessions** cost nothing beyond your own computer.
+- **Claude Code sessions** use whatever the `claude` CLI is signed in with on your computer, normally your Claude plan. CodeBridge never reads those credentials.
+- **Cloud sessions** (optional) use Anthropic Managed Agents with an API key you provide, billed to that key.
+- **Your relay** costs nothing on your own computer, or about $2 a month on Fly.io.
+
+## Contributing
+
+Issues and pull requests are welcome. Please run `pnpm lint && pnpm typecheck && pnpm test` first, and see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2026 iamsanaur

@@ -1,7 +1,6 @@
 {
-  "name": "@codebridge/api",
-  "version": "0.1.0",
-  "private": true,
+  "name": "codebridge-relay",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
@@ -9,24 +8,62 @@
     "build": "tsc -p tsconfig.json",
     "migrate": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bundle": "node scripts/bundle.mjs",
+    "prepack": "pnpm run bundle",
+    "relay": "tsx --env-file-if-exists=.env src/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
-    "@codebridge/protocol": "workspace:*",
-    "@codebridge/shared": "workspace:*",
+    "@electric-sql/pglite": "^0.5.12",
     "@fastify/cors": "^11.3.1",
     "@fastify/helmet": "^13.2.0",
     "@fastify/rate-limit": "^11.2.1",
     "@fastify/websocket": "^11.3.4",
     "fastify": "^5.12.7",
     "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@codebridge/protocol": "workspace:*",
+    "@codebridge/shared": "workspace:*",
     "@types/pg": "^8.15.0",
+    "@types/qrcode": "^1.5.5",
     "@types/ws": "^8.18.0",
+    "esbuild": "^0.25.0",
     "tsx": "^4.20.0",
     "ws": "^8.18.0"
-  }
+  },
+  "description": "CodeBridge relay: a personal (or shared) server that connects your phone to your computer. Run it yourself.",
+  "license": "MIT",
+  "keywords": [
+    "codebridge",
+    "relay",
+    "claude-code"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamsanaur/code-bridge.git",
+    "directory": "apps/api"
+  },
+  "homepage": "https://github.com/iamsanaur/code-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/iamsanaur/code-bridge/issues"
+  },
+  "bin": {
+    "codebridge-relay": "dist/relay.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/relay.js",
+    "migrations",
+    "README.md",
+    "LICENSE"
+  ]
 }

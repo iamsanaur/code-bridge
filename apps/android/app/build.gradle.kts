@@ -9,16 +9,30 @@ val releaseApiUrl = providers.gradleProperty("codebridge.apiUrl").orElse("https:
 require(releaseApiUrl.startsWith("https://")) { "codebridge.apiUrl must use https://" }
 
 android {
-    namespace = "dev.codebridge.app"
+    namespace = "com.e404.codebridge"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.codebridge.app"
+        applicationId = "com.e404.codebridge"
         minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Release signing comes from properties, never from the repo:
+    //   ./gradlew :app:assembleRelease -Pcodebridge.keystore=/path/to.jks -Pcodebridge.keystorePassword=… (alias `codebridge`)
+    val keystorePath = providers.gradleProperty("codebridge.keystore").orNull
+    signingConfigs {
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = providers.gradleProperty("codebridge.keystorePassword").get()
+                keyAlias = providers.gradleProperty("codebridge.keyAlias").orElse("codebridge").get()
+                keyPassword = providers.gradleProperty("codebridge.keystorePassword").get()
+            }
+        }
     }
 
     buildTypes {
@@ -29,6 +43,7 @@ android {
         release {
             buildConfigField("String", "API_URL", "\"$releaseApiUrl\"")
             isMinifyEnabled = true
+            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -54,6 +69,7 @@ dependencies {
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
+    implementation(libs.haze)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)

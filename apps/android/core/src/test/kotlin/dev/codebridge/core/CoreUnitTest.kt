@@ -3,6 +3,7 @@ package dev.codebridge.core
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -135,5 +136,33 @@ class UtilTest {
     @Test fun backoffIsCapped() {
         assertEquals(499, backoffDelayMs(0) { 0.999 })
         assertTrue(backoffDelayMs(40) { 0.999 } <= 15_000)
+    }
+}
+
+class ConnectLinkTest {
+    @Test fun roundTripsAwkwardCharacters() {
+        val link = makeConnectLink("https://my-relay.fly.dev/", "a+b/c=d&e")
+        val parsed = parseConnectLink(link)!!
+        assertEquals("https://my-relay.fly.dev", parsed.server)
+        assertEquals("a+b/c=d&e", parsed.secret)
+        assertEquals("my-relay.fly.dev", parsed.host)
+    }
+
+    @Test fun acceptsLocalHttpOnlyIncludingTheEmulatorHost() {
+        assertNotNull(parseConnectLink("codebridge://connect?server=http%3A%2F%2F10.0.2.2%3A8080&secret=s"))
+        assertNotNull(parseConnectLink("codebridge://connect?server=http%3A%2F%2Flocalhost%3A8080&secret=s"))
+        assertNull(parseConnectLink("codebridge://connect?server=http%3A%2F%2Fexample.com&secret=s"))
+    }
+
+    @Test fun rejectsEverythingElse() {
+        assertNull(parseConnectLink("https://x.dev"))
+        assertNull(parseConnectLink("codebridge://pair?code=ABCD-EFGH"))
+        assertNull(parseConnectLink("codebridge://connect?server=https%3A%2F%2Fx.dev"))
+        assertNull(parseConnectLink("codebridge://connect?server=https%3A%2F%2Fx.dev&secret="))
+        assertNull(parseConnectLink("nope"))
+    }
+
+    @Test fun toleratesWhitespaceAndTrailingSlash() {
+        assertEquals("https://x.dev", parseConnectLink("  codebridge://connect?server=https%3A%2F%2Fx.dev%2F&secret=s\n")?.server)
     }
 }

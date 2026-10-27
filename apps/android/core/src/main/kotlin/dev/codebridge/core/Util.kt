@@ -21,6 +21,38 @@ fun codeFromQr(data: String): String? = runCatching {
     normalizePairingCode(java.net.URLDecoder.decode(code, Charsets.UTF_8))
 }.getOrNull()
 
+/**
+ * What `codebridge-relay` puts in its QR code: `codebridge://connect?server=<url>&secret=<owner secret>`.
+ * It carries the owner secret, so it is treated like a password and never logged.
+ */
+data class ConnectLink(val server: String, val secret: String) {
+    /** The host shown to the user before connecting. */
+    val host: String get() = runCatching { URI(server).host }.getOrNull() ?: server
+}
+
+private val LOCAL_HOSTS = setOf("localhost", "127.0.0.1", "::1", "[::1]", "10.0.2.2")
+
+private fun isLocalHost(host: String) = host in LOCAL_HOSTS || host.endsWith(".local")
+
+/** Parses a scanned or pasted connect link; rejects other schemes and servers that are neither https nor local. */
+fun parseConnectLink(text: String): ConnectLink? = runCatching {
+    val uri = URI(text.trim())
+    if (uri.scheme != "codebridge" || uri.host != "connect") return null
+    val params = uri.rawQuery?.split('&')?.mapNotNull { p -> p.split('=', limit = 2).takeIf { it.size == 2 } }
+        ?.associate { it[0] to java.net.URLDecoder.decode(it[1], Charsets.UTF_8) } ?: return null
+    val server = params["server"]?.trimEnd('/') ?: return null
+    val secret = params["secret"]?.takeIf { it.isNotEmpty() } ?: return null
+    val target = URI(server)
+    val host = target.host ?: return null
+    if (target.scheme != "https" && !(target.scheme == "http" && isLocalHost(host))) return null
+    ConnectLink(server, secret)
+}.getOrNull()
+
+fun makeConnectLink(server: String, secret: String): String {
+    fun enc(s: String) = java.net.URLEncoder.encode(s, Charsets.UTF_8).replace("+", "%20")
+    return "codebridge://connect?server=${enc(server.trimEnd('/'))}&secret=${enc(secret)}"
+}
+
 /** Splits a command line into argv without a shell: quotes group, no globbing/pipes/expansion. */
 fun splitArgs(line: String): List<String> {
     val out = ArrayList<String>()

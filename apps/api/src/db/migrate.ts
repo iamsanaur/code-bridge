@@ -8,6 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 /** Finds the migrations directory whether running from src/ (tsx) or dist/src/ (node). */
 async function migrationsDir(): Promise<string> {
   for (const candidate of [
+    process.env.CODEBRIDGE_MIGRATIONS_DIR ?? '',
+    path.resolve(here, '../migrations'), // bundled: dist/relay.js next to migrations/
     path.resolve(here, '../../migrations'),
     path.resolve(here, '../../../migrations'),
   ]) {

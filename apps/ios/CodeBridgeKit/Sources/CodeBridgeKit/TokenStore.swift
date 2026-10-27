@@ -22,7 +22,7 @@ public actor InMemoryTokenStore: TokenStore {
 /// iOS Keychain storage: `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, so tokens are
 /// excluded from backups and never migrate to another device.
 public struct KeychainTokenStore: TokenStore {
-    private let service = "dev.codebridge.app"
+    private let service = "com.e404.codebridge"
     private let account = "tokens.v1"
 
     public init() {}

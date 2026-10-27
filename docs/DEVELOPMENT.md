@@ -23,7 +23,7 @@ docker compose -f infra/docker-compose.yml up -d postgres
 cp apps/api/.env.example apps/api/.env
 # set CREDENTIAL_ENCRYPTION_KEY=$(openssl rand -base64 32)
 pnpm dev:api                    # tsx watch; applies migrations at startup
-pnpm --filter @codebridge/api migrate   # or migrate explicitly
+pnpm --filter codebridge-relay migrate   # or migrate explicitly
 ```
 
 Environment variables (validated at startup by `apps/api/src/env.ts`; the server refuses to start with invalid config and never prints values):
@@ -106,10 +106,10 @@ CODEBRIDGE_IT_API_URL=http://localhost:8080 CODEBRIDGE_JVM_ONLY=1 ./gradlew :cor
 | Suite                                                                                         | Command                                                                                                            | Needs                                                                                          |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
 | protocol / shared unit tests                                                                  | `pnpm --filter @codebridge/protocol test` etc.                                                                     | —                                                                                              |
-| API integration (real Postgres, real WebSockets) incl. end-to-end with the real agent runtime | `pnpm --filter @codebridge/api test`                                                                               | Postgres at `TEST_DATABASE_URL` (default `postgres://postgres@localhost:5432/codebridge_test`) |
+| API integration (real Postgres, real WebSockets) incl. end-to-end with the real agent runtime | `pnpm --filter codebridge-relay test`                                                                              | Postgres at `TEST_DATABASE_URL` (default `postgres://postgres@localhost:5432/codebridge_test`) |
 | Mac agent (real PTYs, temp workspaces; mocked Messages API)                                   | `pnpm --filter codebridge-agent test`                                                                              | `git`, a POSIX shell                                                                           |
 | Kotlin core (JVM) + contract test against a running API                                       | `CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test` in `apps/android` (`CODEBRIDGE_IT_API_URL` enables the contract test) | JDK 17+                                                                                        |
 | CodeBridgeKit (Swift)                                                                         | `swift test --package-path apps/ios/CodeBridgeKit`                                                                 | macOS + Xcode 26                                                                               |
-| Live Managed Agents test (**real, billable**)                                                 | `CODEBRIDGE_LIVE_ANTHROPIC_KEY=sk-ant-… pnpm --filter @codebridge/api exec vitest run test/cloud.live.test.ts`     | Anthropic key with Managed Agents access                                                       |
+| Live Managed Agents test (**real, billable**)                                                 | `CODEBRIDGE_LIVE_ANTHROPIC_KEY=sk-ant-… pnpm --filter codebridge-relay exec vitest run test/cloud.live.test.ts`    | Anthropic key with Managed Agents access                                                       |
 
 Mocked vs real: test files that fake Anthropic say **MOCKED** in their header. Everything else runs against real Postgres, real sockets and real processes.

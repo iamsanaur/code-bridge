@@ -1,10 +1,22 @@
 # Deployment
 
+## Personal relays (recommended)
+
+Each person runs their own relay, so there is nothing for you to keep up. See
+[apps/api/README.md](../apps/api/README.md): `npx codebridge-relay start --tunnel cloudflare` or
+`npx codebridge-relay fly`. The `Relay image` workflow publishes `ghcr.io/<owner>/codebridge-relay` from `main`
+(make the package public once: GitHub → Packages → codebridge-relay → Package settings). Releasing the relay is
+the same as releasing the agent: bump `version` in `apps/api/package.json`, `npm publish` from `apps/api`.
+
+## Shared relay (accounts)
+
+What follows is for a single shared relay with email accounts (`RELAY_MODE=multi`).
+
 ## API
 
 1. **Database**: PostgreSQL 16 with a dedicated role, TLS, private networking, encrypted backups (see retention notes in SECURITY.md).
 2. **Secrets**: `CREDENTIAL_ENCRYPTION_KEY` from a secrets manager/KMS (32 random bytes, base64). Never commit it. Rotating it: bump `CREDENTIAL_KEY_VERSION` and have users re-enter cloud keys (automatic re-encryption is not implemented).
-3. **Image**: `docker build -f infra/api.Dockerfile -t codebridge-api .` (runs as the `node` user; migrations apply at startup under an advisory lock).
+3. **Image**: `docker build -f infra/relay.Dockerfile -t codebridge-relay .`, then run it with `node dist/relay.js serve` and `RELAY_MODE=multi` (runs as the `node` user; migrations apply at startup under an advisory lock).
 4. **TLS**: terminate TLS at a reverse proxy/load balancer that supports WebSockets (idle timeout ≥ 60 s; the protocol pings every 15–30 s). Set `TRUST_PROXY=true` and `PUBLIC_URL=https://…`. The server refuses to start in production with an `http://` `PUBLIC_URL`.
 5. **Single instance**: the relay holds sockets in memory. Run exactly one replica (or add sticky routing + a pub/sub layer before scaling out). Restarting the API disconnects agents and phones; both reconnect automatically and replay missed events from the Mac's buffer.
 6. **Health checks**: `/healthz` (liveness), `/readyz` (database).
@@ -46,8 +58,8 @@ Homebrew formula are future work.
 
 ## Phone apps
 
-- **iOS**: archive in Xcode 26 with `CODEBRIDGE_API_URL=https://…` for Release, set your team for signing, and ship via TestFlight / App Store. Bundle id `dev.codebridge.app`.
-- **Android**: `./gradlew :app:bundleRelease -Pcodebridge.apiUrl=https://…` (the build refuses non-HTTPS URLs), sign with your upload key, ship via Play. Application id `dev.codebridge.app`.
+- **iOS**: archive in Xcode 26 with `CODEBRIDGE_API_URL=https://…` for Release, set your team for signing, and ship via TestFlight / App Store. Bundle id `com.e404.codebridge`.
+- **Android**: `./gradlew :app:bundleRelease -Pcodebridge.apiUrl=https://…` (the build refuses non-HTTPS URLs), sign with your upload key, ship via Play. Application id `com.e404.codebridge`.
 
 ## Anthropic
 

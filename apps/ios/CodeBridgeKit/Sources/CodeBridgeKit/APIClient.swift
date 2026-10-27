@@ -9,6 +9,7 @@ public struct APIError: Error, LocalizedError, Equatable, Sendable {
     public var message: String
     public var isNetwork: Bool { status == 0 }
     public var errorDescription: String? { message }
+    public init(status: Int, code: String, message: String) { self.status = status; self.code = code; self.message = message }
 }
 
 private struct ErrorBody: Decodable {
@@ -157,6 +158,29 @@ public actor APIClient {
         let res = try await request("POST", path, body: ["email": email, "password": password], auth: false, as: AuthResponse.self)
         await setTokens(res.tokens)
         return res.user
+    }
+
+    /// Personal relay: exchanges the owner secret from the QR code for session tokens. No account involved.
+    public func connect(secret: String) async throws -> User {
+        let res = try await request("POST", "/v1/auth/connect", body: ["secret": secret], auth: false, as: AuthResponse.self)
+        await setTokens(res.tokens)
+        return res.user
+    }
+
+    /// Checks that an address really is a personal CodeBridge relay before any secret is sent to it.
+    public static func verifyPersonalRelay(at baseURL: URL, session: URLSession = .shared) async throws {
+        struct Info: Decodable { let service: String; let mode: String }
+        var req = URLRequest(url: baseURL.appending(path: "v1/relay/info"))
+        req.timeoutInterval = 15
+        let data: Data
+        do { (data, _) = try await session.data(for: req) }
+        catch { throw APIError(status: 0, code: "unreachable", message: "Couldn’t reach \(baseURL.host() ?? "the relay"). Is it running?") }
+        guard let info = try? JSONDecoder().decode(Info.self, from: data), info.service == "codebridge-relay" else {
+            throw APIError(status: 0, code: "not_a_relay", message: "That address isn’t a CodeBridge relay.")
+        }
+        guard info.mode == "personal" else {
+            throw APIError(status: 0, code: "not_personal", message: "That relay uses email accounts. Use “Sign in to a shared relay” instead.")
+        }
     }
 
     public func me() async throws -> User { try await request("GET", "/v1/me") }

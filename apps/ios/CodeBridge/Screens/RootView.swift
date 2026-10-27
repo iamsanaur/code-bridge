@@ -3,11 +3,23 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @State private var connecting = ActionRunner()
+
+    /// Test seam for simulator runs, where nothing can be tapped: CODEBRIDGE_DEBUG_SCREEN=setup.
+    private var debugScreen: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["CODEBRIDGE_DEBUG_SCREEN"]
+        #else
+        nil
+        #endif
+    }
 
     var body: some View {
         Group {
             if !app.ready {
                 ProgressView("Starting CodeBridge…")
+            } else if debugScreen == "setup" {
+                NavigationStack { SetupRelayView() }
             } else if app.user == nil {
                 NavigationStack { WelcomeView() }
             } else {
@@ -15,6 +27,24 @@ struct RootView: View {
             }
         }
         .animation(.smooth, value: app.user?.id)
+        .confirmationDialog(
+            "Connect to \(app.pendingConnect?.host ?? "this relay")?",
+            isPresented: Binding(get: { app.pendingConnect != nil }, set: { if !$0 { app.pendingConnect = nil } }),
+            titleVisibility: .visible,
+            presenting: app.pendingConnect
+        ) { link in
+            Button("Connect") {
+                app.pendingConnect = nil
+                connecting.run { try await app.connect(link) }
+            }
+            Button("Cancel", role: .cancel) { app.pendingConnect = nil }
+        } message: { _ in
+            Text("This relay will be able to run commands on every computer you connect to it. Only continue if you set it up yourself.")
+        }
+        .alert("Couldn’t connect", isPresented: Binding(get: { connecting.error != nil }, set: { if !$0 { connecting.error = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(connecting.error ?? "") }
+        .overlay { if connecting.busy { ProgressView("Connecting…").padding().glassEffect() } }
     }
 }
 
@@ -22,7 +52,7 @@ struct RootView: View {
 /// status in the tab bar's bottom accessory.
 struct MainTabs: View {
     @Environment(AppModel.self) private var app
-    @State private var selection = 0
+    @State private var selection = Int(ProcessInfo.processInfo.environment["CODEBRIDGE_DEBUG_TAB"] ?? "") ?? 0
     @State private var homePath = NavigationPath()
 
     var body: some View {

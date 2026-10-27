@@ -22,18 +22,20 @@ services:
   api:
     build:
       context: ..
-      dockerfile: infra/api.Dockerfile
+      dockerfile: infra/relay.Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       NODE_ENV: development
+      RELAY_MODE: multi # shared relay with email accounts; use `codebridge-relay start` for a personal one
       DATABASE_URL: postgres://codebridge:codebridge@postgres:5432/codebridge
       PUBLIC_URL: http://localhost:8080
       # Development-only key. Generate your own: openssl rand -base64 32
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-ZGV2LW9ubHktZGV2LW9ubHktZGV2LW9ubHktZGV2LW8=}
       CORS_ORIGINS: http://localhost:8081
       LOG_LEVEL: info
+    command: ['node', 'dist/relay.js', 'serve']
     ports:
       - '127.0.0.1:8080:8080'
 

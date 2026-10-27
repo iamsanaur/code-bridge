@@ -19,7 +19,7 @@ targets:
       path: Config/Info.plist
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.codebridge.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.e404.codebridge
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSCameraUsageDescription: CodeBridge uses the camera only to scan the pairing QR code shown by your Mac.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

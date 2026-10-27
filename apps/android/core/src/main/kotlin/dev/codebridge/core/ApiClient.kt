@@ -149,6 +149,13 @@ class ApiClient(
         return res.user
     }
 
+    /** Personal relay: exchanges the owner secret from the QR code for session tokens. No account involved. */
+    suspend fun connect(secret: String): User {
+        val res = request("POST", "/v1/auth/connect", AuthResponse.serializer(), encode(mapOf("secret" to secret)), auth = false)
+        setTokens(res.tokens)
+        return res.user
+    }
+
     suspend fun me(): User = request("GET", "/v1/me", User.serializer())
 
     suspend fun signOut() {
@@ -251,4 +258,21 @@ class ApiClient(
     suspend fun endCloudSession(id: String) {
         request("POST", "/v1/cloud/sessions/$id/end", JsonObject.serializer())
     }
+}
+
+@kotlinx.serialization.Serializable
+private data class RelayInfo(val service: String = "", val mode: String = "")
+
+/** Checks that an address really is a personal CodeBridge relay before any secret is sent to it. */
+suspend fun verifyPersonalRelay(baseUrl: String, http: OkHttpClient = OkHttpClient()) {
+    val text = withContext(Dispatchers.IO) {
+        try {
+            http.newCall(Request.Builder().url(baseUrl.trimEnd('/') + "/v1/relay/info").build()).execute().use { it.body.string() }
+        } catch (e: IOException) {
+            throw ApiException(0, "unreachable", "Couldn’t reach ${runCatching { java.net.URI(baseUrl).host }.getOrNull() ?: "the relay"}. Is it running?")
+        }
+    }
+    val info = runCatching { ProtocolJson.decodeFromString(RelayInfo.serializer(), text) }.getOrNull()
+    if (info?.service != "codebridge-relay") throw ApiException(0, "not_a_relay", "That address isn’t a CodeBridge relay.")
+    if (info.mode != "personal") throw ApiException(0, "not_personal", "That relay uses email accounts. Use “Sign in to a shared relay” instead.")
 }

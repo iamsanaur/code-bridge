@@ -5,6 +5,8 @@ export type AuditAction =
   | 'user.register'
   | 'user.login'
   | 'user.login_failed'
+  | 'owner.connect'
+  | 'owner.connect_failed'
   | 'user.logout'
   | 'user.delete'
   | 'auth.refresh_reuse_detected'

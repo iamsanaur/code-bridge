@@ -1,5 +1,6 @@
 import CodeBridgeKit
 import SwiftUI
+import UIKit
 
 struct DeviceRow: View {
     let device: Device
@@ -69,11 +70,11 @@ struct HomeView: View {
                 AsyncContent(load: { try await app.api.devices() }, reloadTrigger: trigger) { devices in
                     if devices.isEmpty {
                         ContentUnavailableView {
-                            Label("No Mac paired yet", systemImage: "laptopcomputer.slash")
+                            Label("No computer yet", systemImage: "laptopcomputer.slash")
                         } description: {
-                            Text("Install the CodeBridge agent on your Mac, run `codebridge-agent pair`, then scan the code.")
+                            Text("Install the CodeBridge agent on your Mac or PC and connect it to your relay.")
                         } actions: {
-                            NavigationLink(value: Route.pair) { Text("Pair a Mac") }.buttonStyle(.glassProminent)
+                            NavigationLink(value: Route.pair) { Text("Add a computer") }.buttonStyle(.glassProminent)
                         }
                     }
                     ForEach(devices) { d in NavigationLink(value: Route.device(d.id)) { DeviceRow(device: d) } }
@@ -113,7 +114,7 @@ struct HomeView: View {
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: Route.pair) { Image(systemName: "qrcode.viewfinder") }.accessibilityLabel("Pair a Mac")
+                NavigationLink(value: Route.pair) { Image(systemName: "qrcode.viewfinder") }.accessibilityLabel("Add a computer")
             }
         }
         .codeBridgeDestinations()
@@ -241,7 +242,19 @@ struct PairView: View {
 
     var body: some View {
         Form {
-            if done {
+            if let command = app.agentConnectCommand {
+                // Personal relay: the computer joins with the same secret as this phone. No code to approve.
+                Section {
+                    Text("Add a computer to your relay. Install the agent there, then run the command below on it. It connects straight away, with nothing to approve.")
+                        .font(.footnote)
+                    InstallTip()
+                }
+                Section("Run this on the computer") {
+                    CommandBlock(title: "Contains your relay password. Don’t share it.", command: command)
+                    Button { UIPasteboard.general.string = command } label: { Label("Copy command", systemImage: "doc.on.doc") }
+                        .buttonStyle(.glass)
+                }
+            } else if done {
                 Section {
                     Label("Almost there", systemImage: "checkmark.seal.fill").font(.title3.bold()).foregroundStyle(Palette.success)
                     Text("Confirm on your Mac that it should join your account (the agent asks “Is that your account?”). It will then appear on your dashboard.")
@@ -291,7 +304,7 @@ struct PairView: View {
                 }
             }
         }
-        .navigationTitle("Pair a Mac")
+        .navigationTitle(app.isPersonal ? "Add a computer" : "Pair a Mac")
         .onAppear { if let initialCode, code.isEmpty { code = initialCode; claim(initialCode) } }
         .fullScreenCover(isPresented: $scanning) {
             ZStack(alignment: .top) {
@@ -329,11 +342,10 @@ struct InstallTip: View {
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 10) {
-                step(1, "Install Node.js 22+ on your Mac or Windows PC (nodejs.org)", "node --version")
-                step(2, "Install the CodeBridge agent", "npm install -g codebridge-agent")
-                step(3, "Optional: install Claude Code and sign in with your Claude plan", "claude")
-                step(4, "Pair this computer, then allow a project folder", "codebridge-agent pair --server <relay URL>\ncodebridge-agent workspace add <project folder>")
-                step(5, "Keep it running in the background", "codebridge-agent service install")
+                CommandBlock(title: "1. Install Node.js 22+ on your Mac or Windows PC (nodejs.org)", command: "node --version")
+                CommandBlock(title: "2. Install the CodeBridge agent", command: RelayCommands.installAgent)
+                CommandBlock(title: "3. Optional: install Claude Code and sign in with your Claude plan", command: "claude")
+                CommandBlock(title: "4. Allow a project folder, then keep the agent running in the background", command: "codebridge-agent workspace add <project folder>\ncodebridge-agent service install")
                 Text("Your Claude login stays on your computer. It is never sent to CodeBridge or this phone.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -341,18 +353,6 @@ struct InstallTip: View {
         } label: {
             Label("How to install the agent (Mac or Windows)", systemImage: "lightbulb")
                 .font(.subheadline.weight(.semibold))
-        }
-    }
-
-    private func step(_ n: Int, _ title: String, _ command: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("\(n). \(title)").font(.footnote.weight(.medium))
-            Text(command)
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
         }
     }
 }

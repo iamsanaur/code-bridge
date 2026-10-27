@@ -7,8 +7,17 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     HOST: z.string().default('0.0.0.0'),
     PORT: z.coerce.number().int().min(0).max(65535).default(8080),
-    DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres:// URL'),
+    DATABASE_URL: z
+      .string()
+      .regex(/^(postgres(ql)?|pglite):\/\//, 'must be a postgres:// or pglite:// URL'),
     PUBLIC_URL: z.url().default('http://localhost:8080'),
+    /**
+     * `multi`: email/password accounts (a shared, hosted relay).
+     * `personal`: one owner, no accounts. The phone and the agent connect with OWNER_SECRET,
+     * which travels in the QR code, so each person runs their own relay.
+     */
+    RELAY_MODE: z.enum(['multi', 'personal']).default('multi'),
+    OWNER_SECRET: z.string().min(32, 'must be at least 32 characters').max(256).optional(),
     CREDENTIAL_ENCRYPTION_KEY: z
       .string()
       .optional()
@@ -48,6 +57,13 @@ const envSchema = z
       .default(120),
   })
   .superRefine((env, ctx) => {
+    if (env.RELAY_MODE === 'personal' && !env.OWNER_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['OWNER_SECRET'],
+        message: 'required when RELAY_MODE=personal (at least 32 random characters)',
+      });
+    }
     if (env.NODE_ENV === 'production') {
       if (!env.PUBLIC_URL.startsWith('https://')) {
         ctx.addIssue({

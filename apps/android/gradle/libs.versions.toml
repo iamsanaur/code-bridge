@@ -7,6 +7,7 @@ activityCompose = "1.11.0"
 lifecycle = "2.9.4"
 navigation = "2.9.4"
 codeScanner = "16.1.0"
+haze = "1.6.10"
 junit = "5.13.4"
 
 [libraries]
@@ -21,6 +22,7 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-material3 = { module = "androidx.compose.material3:material3" }

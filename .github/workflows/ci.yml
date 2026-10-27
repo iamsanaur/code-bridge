@@ -95,7 +95,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm build
-          pnpm --filter @codebridge/api build
+          pnpm --filter codebridge-relay build
           cd apps/api
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/codebridge PORT=8080 LOG_LEVEL=warn \
             CREDENTIAL_ENCRYPTION_KEY=$(openssl rand -base64 32) node dist/src/server.js &

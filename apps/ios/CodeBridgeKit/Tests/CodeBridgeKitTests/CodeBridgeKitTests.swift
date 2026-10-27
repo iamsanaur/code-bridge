@@ -99,3 +99,39 @@ import Testing
         #expect(normalizePairingCode("ABCD-EFG0") == nil)
     }
 }
+
+@Suite struct ConnectLinkTests {
+    @Test func roundTripsAwkwardCharacters() throws {
+        let link = makeConnectLink(server: URL(string: "https://my-relay.fly.dev")!, secret: "a+b/c=d&e")
+        let parsed = try #require(parseConnectLink(link))
+        #expect(parsed.server.absoluteString == "https://my-relay.fly.dev")
+        #expect(parsed.secret == "a+b/c=d&e")
+        #expect(parsed.host == "my-relay.fly.dev")
+    }
+
+    @Test func acceptsLocalHttpOnly() {
+        #expect(parseConnectLink("codebridge://connect?server=http%3A%2F%2Flocalhost%3A8080&secret=s") != nil)
+        #expect(parseConnectLink("codebridge://connect?server=http%3A%2F%2Fexample.com&secret=s") == nil)
+    }
+
+    @Test func rejectsEverythingElse() {
+        #expect(parseConnectLink("https://x.dev") == nil)
+        #expect(parseConnectLink("codebridge://pair?code=ABCD-EFGH") == nil)
+        #expect(parseConnectLink("codebridge://connect?server=https%3A%2F%2Fx.dev") == nil)
+        #expect(parseConnectLink("codebridge://connect?server=https%3A%2F%2Fx.dev&secret=") == nil)
+        #expect(parseConnectLink("nope") == nil)
+    }
+
+    @Test func toleratesWhitespaceAndTrailingSlash() {
+        #expect(parseConnectLink("  codebridge://connect?server=https%3A%2F%2Fx.dev%2F&secret=s\n")?.server.absoluteString == "https://x.dev")
+    }
+
+    @Test func relayStoreRoundTrips() async {
+        let store = InMemoryRelayStore()
+        let r = RelayConnection(server: URL(string: "https://x.dev")!, secret: "s")
+        await store.save(r)
+        #expect(await store.load() == r)
+        await store.clear()
+        #expect(await store.load() == nil)
+    }
+}

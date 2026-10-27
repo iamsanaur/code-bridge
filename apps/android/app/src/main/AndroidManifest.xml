@@ -31,6 +31,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="codebridge" android:host="pair" />
             </intent-filter>
+            <!-- codebridge://connect?server=…&secret=… joins a personal relay (after the user confirms). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="codebridge" android:host="connect" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

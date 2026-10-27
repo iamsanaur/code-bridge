@@ -209,9 +209,9 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Account") {
-                LabeledContent("Signed in as", value: app.user?.email ?? "")
-                LabeledContent("Server", value: app.apiURL.host() ?? app.apiURL.absoluteString)
+            Section(app.isPersonal ? "Relay" : "Account") {
+                if !app.isPersonal { LabeledContent("Signed in as", value: app.user?.email ?? "") }
+                LabeledContent(app.isPersonal ? "Connected to" : "Server", value: app.apiURL.host() ?? app.apiURL.absoluteString)
                 if app.isInsecure { Label("Not using HTTPS (development).", systemImage: "exclamationmark.shield").foregroundStyle(Palette.warning) }
             }
             Section {
@@ -227,14 +227,18 @@ struct SettingsView: View {
             }
             .font(.footnote)
             Section {
-                Button("Sign out") { Task { await app.signOut() } }
+                Button(app.isPersonal ? "Disconnect from this relay" : "Sign out", role: app.isPersonal ? .destructive : nil) { Task { await app.signOut() } }
+            } footer: {
+                if app.isPersonal { Text("Your computers stay registered on the relay. Scan its QR code again to reconnect.") }
             }
-            Section {
-                SecureField("Confirm with your password", text: $password)
-                InlineError(message: runner.error)
-                Button("Delete my account", role: .destructive) { confirmDelete = true }.disabled(password.isEmpty || runner.busy)
-            } header: { Text("Delete account") } footer: {
-                Text("Permanently deletes your account, revokes all Macs, ends cloud sessions and erases stored credentials. This cannot be undone.")
+            if !app.isPersonal {
+                Section {
+                    SecureField("Confirm with your password", text: $password)
+                    InlineError(message: runner.error)
+                    Button("Delete my account", role: .destructive) { confirmDelete = true }.disabled(password.isEmpty || runner.busy)
+                } header: { Text("Delete account") } footer: {
+                    Text("Permanently deletes your account, revokes all Macs, ends cloud sessions and erases stored credentials. This cannot be undone.")
+                }
             }
         }
         .navigationTitle("Settings")
