@@ -1,0 +1,34 @@
+# Fallback project spec for XcodeGen (https://github.com/yonaskolb/XcodeGen):
+#   brew install xcodegen && xcodegen generate
+# Produces the same project as CodeBridge.xcodeproj.
+name: CodeBridge
+options:
+  deploymentTarget:
+    iOS: "26.0"
+packages:
+  CodeBridgeKit:
+    path: CodeBridgeKit
+targets:
+  CodeBridge:
+    type: application
+    platform: iOS
+    sources: [CodeBridge]
+    dependencies:
+      - package: CodeBridgeKit
+    info:
+      path: Config/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.codebridge.app
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: CodeBridge uses the camera only to scan the pairing QR code shown by your Mac.
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+      configs:
+        Debug:
+          CODEBRIDGE_API_URL: http://localhost:8080
+        Release:
+          CODEBRIDGE_API_URL: https://codebridge.example.com

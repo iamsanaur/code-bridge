@@ -14,7 +14,7 @@
     "test": "pnpm -r --workspace-concurrency=1 test",
     "dev:api": "pnpm --filter @codebridge/api dev",
     "dev:agent": "pnpm --filter @codebridge/mac-agent dev",
-    "dev:mobile": "pnpm --filter @codebridge/mobile start"
+    "test:android": "cd apps/android && CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

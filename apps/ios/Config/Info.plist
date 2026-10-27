@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Base URL of the CodeBridge API; set CODEBRIDGE_API_URL in the build settings (https:// for release). -->
+	<key>CodeBridgeAPIURL</key>
+	<string>$(CODEBRIDGE_API_URL)</string>
+	<!-- codebridge://pair?code=XXXX-XXXX opens the pairing sheet with the code filled in. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.codebridge.pair</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>codebridge</string>
+			</array>
+		</dict>
+	</array>
+	<!-- HTTPS everywhere except local development servers on the LAN. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

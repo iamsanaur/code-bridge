@@ -5,9 +5,14 @@ coverage/
 .env.*
 !.env.example
 *.log
-.expo/
-apps/mobile/web-build/
-apps/mobile/dist/
 .DS_Store
 .turbo/
 e2e-artifacts/
+# Native apps
+apps/android/.gradle/
+apps/android/**/build/
+apps/android/local.properties
+apps/ios/**/xcuserdata/
+apps/ios/**/.build/
+apps/ios/**/.swiftpm/
+apps/ios/DerivedData/

@@ -4,13 +4,13 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
+    // Native apps (Kotlin/Swift) have their own toolchains.
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
-      '**/.expo/**',
-      'apps/mobile/web-build/**',
+      'apps/android/**',
+      'apps/ios/**',
       'e2e-artifacts/**',
-      'apps/mobile/expo-env.d.ts',
     ],
   },
   js.configs.recommended,
@@ -26,11 +26,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/mobile/**/*.{ts,tsx}'],
-    languageOptions: { globals: { ...globals.browser, __DEV__: 'readonly' } },
-  },
-  {
-    files: ['**/*.test.{ts,tsx}', '**/test/**', 'apps/mobile/jest.config.js'],
+    files: ['**/*.test.ts', '**/test/**'],
     languageOptions: { globals: { ...globals.jest } },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

@@ -5,7 +5,7 @@
 - Node.js 22+, pnpm 10 (`corepack enable`), TypeScript 5.9
 - PostgreSQL 16 (Docker Compose file provided)
 - macOS for the real agent experience (Keychain, launchd). The agent also runs on Linux for development and CI: `node-pty` builds there, and `CODEBRIDGE_INSECURE_FILE_SECRETS=1` swaps the Keychain for a 0600 file (development only).
-- Expo SDK 58 / React Native 0.88 for the app. Use Expo Go or a development build; QR scanning needs a camera, so use the manual code in the web preview.
+- Xcode 26 (iOS 26 SDK) for the iOS app; Android Studio / Android SDK 36 + JDK 17 for the Android app.
 
 ## Install & build
 
@@ -75,25 +75,41 @@ Agent environment: `CODEBRIDGE_HOME` (config dir override), `CODEBRIDGE_LOG_LEVE
 
 Configuration lives in `~/Library/Application Support/CodeBridge/config.json` (0600): server URL, workspaces, policy (presets, switches, `envPassthrough`, PATH, limits) and coding-agent settings (`model`, `effort`, `maxTurnsPerPrompt`, `maxPromptMinutes`, `serverFallbacks`). Edit presets there; the agent picks up changes within 5 s.
 
-## Mobile
+## iOS app (SwiftUI + Liquid Glass)
 
 ```bash
-cd apps/mobile
-EXPO_PUBLIC_API_URL=http://192.168.1.20:8080 pnpm start     # LAN IP of the API for a physical phone
-pnpm web                                                     # web preview (tokens kept in memory only)
-pnpm test                                                    # jest-expo + React Native Testing Library
-npx expo export --platform ios --platform android            # verify native JS bundles compile
+open apps/ios/CodeBridge.xcodeproj        # or: cd apps/ios && xcodegen generate (project.yml)
+swift test --package-path apps/ios/CodeBridgeKit
+xcodebuild -project apps/ios/CodeBridge.xcodeproj -scheme CodeBridge -destination 'generic/platform=iOS Simulator' build
 ```
+
+- Deployment target iOS 26 (Liquid Glass APIs: `glassEffect`, `GlassEffectContainer`, `.buttonStyle(.glass/.glassProminent)`, `tabBarMinimizeBehavior`, `tabViewBottomAccessory`, `ToolbarSpacer`).
+- API URL: build setting `CODEBRIDGE_API_URL` (Debug `http://localhost:8080`, Release must be `https://`). ATS allows plain HTTP only for local networking.
+- Design: glass is used only on the navigation/control layer (tab bar, bottom accessory, toolbars, floating terminal key bar and composer, scanner overlay, primary buttons), never on content cards, following Apple's Liquid Glass guidance.
+- Tokens: iOS Keychain, `WhenUnlockedThisDeviceOnly`. QR pairing: VisionKit `DataScannerViewController` (camera usage string provided); `codebridge://pair?code=…` links open the pairing sheet.
+
+## Android app (Jetpack Compose + Material 3)
+
+```bash
+cd apps/android
+./gradlew :app:installDebug                         # debug build talks to http://10.0.2.2:8080 (emulator → host)
+./gradlew :app:assembleRelease -Pcodebridge.apiUrl=https://codebridge.example.com
+CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test           # no Android SDK needed
+CODEBRIDGE_IT_API_URL=http://localhost:8080 CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test   # + contract test vs a running API
+```
+
+- `:core` (pure Kotlin/JVM): models (kotlinx.serialization), REST client with single-flight token refresh, OkHttp WebSocket relay client with reconnect/resubscribe, `SessionState`, `TerminalBuffer`.
+- `:app`: Compose + Material 3 (dynamic colour, edge-to-edge), Navigation Compose, tokens encrypted with an Android Keystore AES-GCM key, Google code scanner for QR pairing (no camera permission), release builds HTTPS-only via network security config, backups disabled.
 
 ## Tests
 
-| Suite                                                                                         | Command                                                                                                        | Needs                                                                                          |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| protocol / shared unit tests                                                                  | `pnpm --filter @codebridge/protocol test` etc.                                                                 | —                                                                                              |
-| API integration (real Postgres, real WebSockets) incl. end-to-end with the real agent runtime | `pnpm --filter @codebridge/api test`                                                                           | Postgres at `TEST_DATABASE_URL` (default `postgres://postgres@localhost:5432/codebridge_test`) |
-| Mac agent (real PTYs, temp workspaces; mocked Messages API)                                   | `pnpm --filter @codebridge/mac-agent test`                                                                     | `git`, a POSIX shell                                                                           |
-| Mobile (jest-expo)                                                                            | `pnpm --filter @codebridge/mobile test`                                                                        | —                                                                                              |
-| Live Managed Agents test (**real, billable**)                                                 | `CODEBRIDGE_LIVE_ANTHROPIC_KEY=sk-ant-… pnpm --filter @codebridge/api exec vitest run test/cloud.live.test.ts` | Anthropic key with Managed Agents access                                                       |
-| Browser end-to-end                                                                            | `node scripts/e2e-web.mjs` (`E2E_AGENT_USER=<user>` when running as root)                                      | Postgres, Playwright Chromium                                                                  |
+| Suite                                                                                         | Command                                                                                                            | Needs                                                                                          |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| protocol / shared unit tests                                                                  | `pnpm --filter @codebridge/protocol test` etc.                                                                     | —                                                                                              |
+| API integration (real Postgres, real WebSockets) incl. end-to-end with the real agent runtime | `pnpm --filter @codebridge/api test`                                                                               | Postgres at `TEST_DATABASE_URL` (default `postgres://postgres@localhost:5432/codebridge_test`) |
+| Mac agent (real PTYs, temp workspaces; mocked Messages API)                                   | `pnpm --filter @codebridge/mac-agent test`                                                                         | `git`, a POSIX shell                                                                           |
+| Kotlin core (JVM) + contract test against a running API                                       | `CODEBRIDGE_JVM_ONLY=1 ./gradlew :core:test` in `apps/android` (`CODEBRIDGE_IT_API_URL` enables the contract test) | JDK 17+                                                                                        |
+| CodeBridgeKit (Swift)                                                                         | `swift test --package-path apps/ios/CodeBridgeKit`                                                                 | macOS + Xcode 26                                                                               |
+| Live Managed Agents test (**real, billable**)                                                 | `CODEBRIDGE_LIVE_ANTHROPIC_KEY=sk-ant-… pnpm --filter @codebridge/api exec vitest run test/cloud.live.test.ts`     | Anthropic key with Managed Agents access                                                       |
 
 Mocked vs real: test files that fake Anthropic say **MOCKED** in their header. Everything else runs against real Postgres, real sockets and real processes.

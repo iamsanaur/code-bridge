@@ -26,18 +26,10 @@ docker run -d --name codebridge-api -p 127.0.0.1:8080:8080 \
 
 Distributed from source for now: `apps/mac-agent/scripts/install.sh` then `codebridge-agent service install`. Code-signed, notarised packages (or a Homebrew formula) are future work.
 
-## Mobile app
+## Phone apps
 
-Use EAS Build:
-
-```bash
-cd apps/mobile
-# set the production API URL at build time
-EXPO_PUBLIC_API_URL=https://codebridge.example.com eas build --platform ios
-EXPO_PUBLIC_API_URL=https://codebridge.example.com eas build --platform android
-```
-
-`app.json` sets bundle ids (`dev.codebridge.app`), the camera usage string (QR scanning only), dark UI, and `allowBackup: false` on Android. No EAS project is configured in this repository.
+- **iOS**: archive in Xcode 26 with `CODEBRIDGE_API_URL=https://…` for Release, set your team for signing, and ship via TestFlight / App Store. Bundle id `dev.codebridge.app`.
+- **Android**: `./gradlew :app:bundleRelease -Pcodebridge.apiUrl=https://…` (the build refuses non-HTTPS URLs), sign with your upload key, ship via Play. Application id `dev.codebridge.app`.
 
 ## Anthropic
 

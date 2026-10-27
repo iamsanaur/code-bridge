@@ -6,9 +6,9 @@ Control coding sessions on **your own Mac** from your iPhone or Android phone, f
 
 ```
 ┌──────────────┐   HTTPS + WSS (auth'd)   ┌─────────────────────┐   WSS, outbound from the Mac   ┌──────────────────────┐
-│  Mobile app  │ ───────────────────────▶ │  CodeBridge API     │ ◀──────────────────────────── │  Mac agent (your user)│
-│ (Expo, iOS/  │ ◀─────────────────────── │  relay + Postgres   │ ──────────────────────────────▶│  PTY · coding agent  │
-│  Android)    │   live events, approvals │  (Fastify)          │   commands (policy-checked     │  workspace allowlist │
+│ Native apps  │ ───────────────────────▶ │  CodeBridge API     │ ◀──────────────────────────── │  Mac agent (your user)│
+│ SwiftUI iOS, │ ◀─────────────────────── │  relay + Postgres   │ ──────────────────────────────▶│  PTY · coding agent  │
+│ Compose Andr.│   live events, approvals │  (Fastify)          │   commands (policy-checked     │  workspace allowlist │
 └──────────────┘                          └──────────┬──────────┘    again on the Mac)           └──────────────────────┘
                                                      │ Managed Agents API (user's key, encrypted at rest)
                                                      ▼
@@ -19,18 +19,19 @@ Control coding sessions on **your own Mac** from your iPhone or Android phone, f
 
 ## What works today
 
-| Area                                                                                                                                                                  | Status                                                                                                 |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Accounts: register, login, rotating refresh tokens with reuse detection, logout, account deletion                                                                     | ✅ implemented & tested                                                                                |
-| Pairing: short-lived, single-use code/QR (RFC 8628-style), local confirmation on the Mac, revocation, credential rotation                                             | ✅ implemented & tested                                                                                |
-| Relay: outbound authenticated agent WebSocket, sequenced events, replay after reconnects, de-duplication, heartbeats, rate & size limits                              | ✅ implemented & tested                                                                                |
-| Local sessions: approved workspaces, preset commands in a PTY, terminal input, interrupt/stop, exit codes, "lost" detection after restarts                            | ✅ implemented & tested end-to-end                                                                     |
-| Local policy: custom commands and interactive shells off by default; deny-list; risky-command confirmation; env sanitisation; symlink-safe path confinement           | ✅ implemented & tested                                                                                |
-| Coding agent (Anthropic Messages API, your key in the Mac Keychain): streaming, bounded tool loop, approvals for edits/commands, cancellation, usage & cost estimates | ✅ implemented; tested against a **mocked** API (no live key was available)                            |
-| Claude Code CLI provider (headless `claude -p`, uses the CLI's own login)                                                                                             | ✅ implemented; output parsing tested with mocked CLI output                                           |
-| Managed cloud sessions (Anthropic Managed Agents beta): create, stream, approve tools, prompt, interrupt, end (archive), budgets, quotas, cleanup                     | ✅ implemented; tested with a **mocked** provider; opt-in live test included but **not run** (no key)  |
-| Mobile app: all 15 screens, dark UI, terminal with key bar, chat with approvals, reconnection banner                                                                  | ✅ implemented; unit/UI tests; web build driven end-to-end in Chromium; iOS/Android JS bundles compile |
-| Docker Compose / API Dockerfile                                                                                                                                       | ✍️ written, **not run** here (no Docker daemon in the build environment)                               |
+| Area                                                                                                                                                                  | Status                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounts: register, login, rotating refresh tokens with reuse detection, logout, account deletion                                                                     | ✅ implemented & tested                                                                                                                        |
+| Pairing: short-lived, single-use code/QR (RFC 8628-style), local confirmation on the Mac, revocation, credential rotation                                             | ✅ implemented & tested                                                                                                                        |
+| Relay: outbound authenticated agent WebSocket, sequenced events, replay after reconnects, de-duplication, heartbeats, rate & size limits                              | ✅ implemented & tested                                                                                                                        |
+| Local sessions: approved workspaces, preset commands in a PTY, terminal input, interrupt/stop, exit codes, "lost" detection after restarts                            | ✅ implemented & tested end-to-end                                                                                                             |
+| Local policy: custom commands and interactive shells off by default; deny-list; risky-command confirmation; env sanitisation; symlink-safe path confinement           | ✅ implemented & tested                                                                                                                        |
+| Coding agent (Anthropic Messages API, your key in the Mac Keychain): streaming, bounded tool loop, approvals for edits/commands, cancellation, usage & cost estimates | ✅ implemented; tested against a **mocked** API (no live key was available)                                                                    |
+| Claude Code CLI provider (headless `claude -p`, uses the CLI's own login)                                                                                             | ✅ implemented; output parsing tested with mocked CLI output                                                                                   |
+| Managed cloud sessions (Anthropic Managed Agents beta): create, stream, approve tools, prompt, interrupt, end (archive), budgets, quotas, cleanup                     | ✅ implemented; tested with a **mocked** provider; opt-in live test included but **not run** (no key)                                          |
+| **iOS app** (SwiftUI, iOS 26, Liquid Glass): all screens, glass tab bar with connection accessory, floating glass terminal key bar & composer, VisionKit QR pairing   | ✅ written; `CodeBridgeKit` unit tests + Xcode build run in CI (macOS) — **not compiled in the authoring environment** (no Swift toolchain)    |
+| **Android app** (Kotlin, Jetpack Compose, Material 3): all screens, Keystore-encrypted tokens, Google code scanner pairing                                            | ✅ Kotlin core compiled & tested here (22 tests incl. a contract test against the real API); Compose UI built in CI only (no Android SDK here) |
+| Docker Compose / API Dockerfile                                                                                                                                       | ✍️ written, **not run** here (no Docker daemon in the build environment)                                                                       |
 
 See [docs/PLAN.md](docs/PLAN.md) for milestones and remaining work, and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
 
@@ -52,8 +53,9 @@ pnpm --filter @codebridge/mac-agent exec tsx src/cli.ts pair --server http://loc
 pnpm --filter @codebridge/mac-agent exec tsx src/cli.ts workspace add ~/code/my-project
 pnpm dev:agent                                                 # = codebridge-agent run
 
-# 3. Mobile app
-EXPO_PUBLIC_API_URL=http://<your-LAN-IP>:8080 pnpm dev:mobile # scan with Expo Go / a dev build
+# 3. Phone apps
+open apps/ios/CodeBridge.xcodeproj          # Xcode 26+, run on an iOS 26 device/simulator (set CODEBRIDGE_API_URL)
+cd apps/android && ./gradlew :app:installDebug   # Android Studio / SDK 36; emulator reaches the API at 10.0.2.2
 ```
 
 On the phone: create an account → **Pair a Mac** → scan the QR code (or type the code) → approve → confirm on the Mac → open the Mac → pick a workspace → **New session** → choose a preset → watch the output live.
@@ -66,21 +68,22 @@ For a permanent install on a Mac use `apps/mac-agent/scripts/install.sh` and `co
 apps/
   api/          Fastify API + WebSocket relay + Postgres migrations + cloud provider adapter
   mac-agent/    macOS agent & CLI (pairing, PTY sessions, coding agent, Claude Code provider, launchd)
-  mobile/       Expo / React Native app (expo-router, TanStack Query)
+  ios/          native iOS app: SwiftUI + Liquid Glass (CodeBridge.xcodeproj) and the CodeBridgeKit Swift package
+  android/      native Android app: Jetpack Compose + Material 3 (:app) and a pure-Kotlin core (:core)
 packages/
   protocol/     zod schemas for every message crossing a trust boundary, shared DTOs and limits
   shared/       secret redaction, terminal model, backoff, pricing estimates
 docs/           ARCHITECTURE, SECURITY, API, DEVELOPMENT, DEPLOYMENT, PLAN
 infra/          docker-compose.yml, api.Dockerfile
-scripts/        e2e-web.mjs (browser end-to-end check of the whole stack)
 ```
 
 ## Tests
 
 ```bash
-pnpm test        # protocol, shared, api (needs Postgres: TEST_DATABASE_URL), mac-agent, mobile
+pnpm test        # protocol, shared, api (needs Postgres: TEST_DATABASE_URL), mac-agent
+pnpm test:android                    # Kotlin core (JVM); add CODEBRIDGE_IT_API_URL=http://localhost:8080 for the contract test
+swift test --package-path apps/ios/CodeBridgeKit   # on macOS
 pnpm lint && pnpm typecheck && pnpm format:check
-node scripts/e2e-web.mjs   # optional: full stack in a real browser (needs Playwright + Postgres)
 ```
 
 Tests marked **mocked** in their file headers use fakes for Anthropic's APIs; `apps/api/test/cloud.live.test.ts` is the only test that calls Anthropic for real and runs only when `CODEBRIDGE_LIVE_ANTHROPIC_KEY` is set.

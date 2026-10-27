@@ -2,12 +2,13 @@
 
 ## Components
 
-| Component                        | Runs where                                        | Responsibilities                                                                                                                                                                              |
-| -------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Mobile app** (`apps/mobile`)   | iOS / Android (Expo); web preview for development | Sign-in, pairing, device & session management, live terminal, agent chat, approvals, cloud configuration, usage                                                                               |
-| **API / relay** (`apps/api`)     | Your server (single instance)                     | Accounts and tokens, pairing, device registry, session metadata, idempotent command dispatch, event relay with replay buffer, audit log, encrypted cloud credentials, cloud session lifecycle |
-| **Mac agent** (`apps/mac-agent`) | Each Mac, as the logged-in user (LaunchAgent)     | Outbound connection to the relay, local policy enforcement, PTY sessions, the Anthropic coding agent, Claude Code CLI sessions, git status/diff, Keychain secrets                             |
-| **Managed Agents** (Anthropic)   | Anthropic cloud                                   | Hosts CodeBridge-managed cloud sessions in isolated containers                                                                                                                                |
+| Component                        | Runs where                                     | Responsibilities                                                                                                                                                                              |
+| -------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **iOS app** (`apps/ios`)         | iPhone / iPad, iOS 26 (SwiftUI + Liquid Glass) | Sign-in, pairing, device & session management, live terminal, agent chat, approvals, cloud configuration, usage. Logic lives in the `CodeBridgeKit` Swift package                             |
+| **Android app** (`apps/android`) | Android 9+ (Jetpack Compose + Material 3)      | Same features. Logic lives in the pure-Kotlin `:core` module                                                                                                                                  |
+| **API / relay** (`apps/api`)     | Your server (single instance)                  | Accounts and tokens, pairing, device registry, session metadata, idempotent command dispatch, event relay with replay buffer, audit log, encrypted cloud credentials, cloud session lifecycle |
+| **Mac agent** (`apps/mac-agent`) | Each Mac, as the logged-in user (LaunchAgent)  | Outbound connection to the relay, local policy enforcement, PTY sessions, the Anthropic coding agent, Claude Code CLI sessions, git status/diff, Keychain secrets                             |
+| **Managed Agents** (Anthropic)   | Anthropic cloud                                | Hosts CodeBridge-managed cloud sessions in isolated containers                                                                                                                                |
 
 `packages/protocol` defines every message as a zod schema; all three components validate inbound frames against it and drop anything invalid.
 
@@ -50,7 +51,7 @@ Status: `starting → running ⇄ waiting/idle → completed | failed | killed |
 | `ClaudeCodeSession` (LocalClaudeCodeProvider)                  | Mac agent | Spawns the installed `claude` CLI in headless mode (`-p --output-format stream-json`), resumes with `--resume`. Uses the CLI's own login; no credentials are read or forwarded.                                                                                                                                                                                                         |
 | `AnthropicManagedAgentsProvider` (ManagedCloudSessionProvider) | API       | Creates one agent + one cloud environment per user (stored ids, updated in place), then sessions with a hard `budget`. Streams events (stream-first, then history, de-duplicated by event id), maps them to CodeBridge events, handles `requires_action` tool confirmations, interrupt and archive.                                                                                     |
 
-The mobile app only sees CodeBridge DTOs and events, so providers can change without app changes.
+The phone apps only see CodeBridge DTOs and events, so providers can change without app changes.
 
 ## Scaling notes
 
