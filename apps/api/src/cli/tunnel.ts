@@ -82,6 +82,8 @@ export interface Reachability {
   ok: boolean;
   /** The last HTTP status seen, or null if nothing answered. */
   status: number | null;
+  /** Why the last attempt failed when nothing answered (for example ENOTFOUND for an address this computer cannot resolve). */
+  error?: string;
 }
 
 /**
@@ -94,8 +96,9 @@ export async function verifyRelayReachable(
   opts: { timeoutMs?: number; intervalMs?: number; fetchFn?: typeof fetch } = {},
 ): Promise<Reachability> {
   const fetchFn = opts.fetchFn ?? fetch;
-  const deadline = Date.now() + (opts.timeoutMs ?? 45_000);
+  const deadline = Date.now() + (opts.timeoutMs ?? 90_000);
   let status: number | null = null;
+  let error: string | undefined;
   for (;;) {
     try {
       const res = await fetchFn(`${baseUrl.replace(/\/$/, '')}/v1/relay/info`, {
@@ -104,10 +107,11 @@ export async function verifyRelayReachable(
       status = res.status;
       const body = (await res.json().catch(() => null)) as { service?: string } | null;
       if (res.ok && body?.service === 'codebridge-relay') return { ok: true, status };
-    } catch {
-      // not reachable yet
+    } catch (e) {
+      const cause = (e as { cause?: { code?: string } }).cause;
+      error = cause?.code ?? (e as Error).name;
     }
-    if (Date.now() >= deadline) return { ok: false, status };
+    if (Date.now() >= deadline) return { ok: false, status, error };
     await new Promise((r) => setTimeout(r, opts.intervalMs ?? 2000));
   }
 }

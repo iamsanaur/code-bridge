@@ -17,6 +17,31 @@ type PollResponse =
   | { status: 'pending' | 'denied' | 'expired' | 'completed' }
   | { status: 'approved'; deviceId: string; deviceSecret: string; accountEmail: string | null };
 
+/**
+ * A brand-new tunnel address can take a few seconds before it reaches the relay, and during that time it may
+ * answer with an error page. Wait for the relay's own answer before using the address.
+ */
+export async function waitForRelay(
+  serverUrl: string,
+  io: { print: (s: string) => void },
+  sleep: (ms: number) => Promise<void>,
+  attempts = 15,
+): Promise<void> {
+  let last = '';
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const info = await apiRequest<{ service?: string }>(serverUrl, 'GET', '/v1/relay/info');
+      if (info.service === 'codebridge-relay') return;
+      last = 'That address is not a CodeBridge relay.';
+    } catch (err) {
+      last = (err as Error).message;
+    }
+    if (i === 0) io.print('Waiting for the relay address to answer…');
+    await sleep(2000);
+  }
+  throw new Error(last || 'The relay did not answer.');
+}
+
 export interface PairIO {
   print: (s: string) => void;
   confirm: (question: string) => Promise<boolean>;
@@ -51,6 +76,7 @@ export async function pair(opts: {
   });
 
   if (opts.ownerSecret) {
+    await waitForRelay(serverUrl, io, sleep);
     const owner = await apiRequest<{ tokens: { accessToken: string } }>(
       serverUrl,
       'POST',

@@ -110,8 +110,10 @@ async function start(args: string[]): Promise<number> {
     const reach = await verifyRelayReachable(publicUrl);
     if (!reach.ok) {
       console.error(
-        `\nThe public address ${publicUrl} is not reaching the relay (${reach.status ? `it answered HTTP ${reach.status}` : 'no answer'}).\n` +
-          'Something else is answering for it, or the tunnel is not ready. Check your Cloudflare setup, or deploy with `codebridge-relay fly`.',
+        `\nThe public address ${publicUrl} is not reaching the relay (${reach.status ? `it answered HTTP ${reach.status}` : `no answer${reach.error ? `: ${reach.error}` : ''}`}).\n` +
+          (reach.error === 'ENOTFOUND'
+            ? 'This computer cannot look that address up yet. New trycloudflare.com names can take a minute to reach your DNS resolver, and some routers and VPNs block them. Try again, switch DNS to 1.1.1.1, or deploy with `codebridge-relay fly`.'
+            : 'Something else is answering for it, or the tunnel is not ready. Check your Cloudflare setup, or deploy with `codebridge-relay fly`.'),
       );
       tunnel.stop();
       await relay.stop();

@@ -42,7 +42,20 @@ export async function apiRequest<T>(
     signal: AbortSignal.timeout(20_000),
   });
   const text = await res.text();
-  const json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  let json: Record<string, unknown> = {};
+  if (text) {
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      // A web page, not the CodeBridge API: a tunnel that is not ready, a proxy error page, or another program.
+      throw new ApiError(
+        res.status,
+        'not_the_api',
+        `${url.host} answered with a web page (HTTP ${res.status}), not the CodeBridge relay. ` +
+          'If this is a new tunnel address, give it a few seconds and try again; otherwise check that the relay is running there.',
+      );
+    }
+  }
   if (!res.ok)
     throw new ApiError(
       res.status,
