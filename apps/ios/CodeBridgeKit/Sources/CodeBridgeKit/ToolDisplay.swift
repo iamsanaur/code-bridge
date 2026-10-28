@@ -22,9 +22,12 @@ public enum ToolDisplay {
 
     /// Result text with Claude Code's `[{"type":"text","text":"…"}]` wrapping removed.
     public static func resultText(_ summary: String) -> String {
+        // An older agent sent a picture's base64, cut off mid-JSON, so it cannot be parsed.
+        if summary.hasPrefix(#"[{"type":"image""#) { return "[image]" }
         guard summary.hasPrefix("["), let data = summary.data(using: .utf8),
               let blocks = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return summary }
-        let texts = blocks.compactMap { $0["text"] as? String }
+        // Pictures come back as base64 blocks; the app shows the file itself, so say "[image]" here.
+        let texts = blocks.compactMap { b -> String? in b["type"] as? String == "image" ? "[image]" : b["text"] as? String }
         return texts.isEmpty ? summary : texts.joined(separator: "\n")
     }
 

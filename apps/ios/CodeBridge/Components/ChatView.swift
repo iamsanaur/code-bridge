@@ -8,6 +8,8 @@ struct ChatTranscriptView: View {
     let revision: Int
     var working = false
     var onRetry: (() -> Void)?
+    @State private var position = ScrollPosition(edge: .bottom)
+    @State private var pinned = true
 
     var body: some View {
         ScrollView {
@@ -31,9 +33,16 @@ struct ChatTranscriptView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
-        // Stay pinned to the newest line while text streams in and rows change height.
-        .defaultScrollAnchor(.bottom, for: .sizeChanges)
-        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        // Stay on the newest line while text streams in, history loads and pictures arrive, until the reader scrolls up.
+        .scrollPosition($position)
+        .onScrollPhaseChange { old, new, context in
+            guard new == .idle, old != .idle else { return }
+            let g = context.geometry
+            pinned = g.contentSize.height + g.contentInsets.bottom - g.contentOffset.y - g.containerSize.height < 140
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, _ in
+            if pinned { position.scrollTo(edge: .bottom) }
+        }
         .scrollDismissesKeyboard(.interactively)
     }
 
@@ -69,6 +78,7 @@ struct ChatTranscriptView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                ForEach(ImageRefs.paths(in: text), id: \.self) { ChatImage(path: $0) }
             }
         case let .tool(_, _, name, summary, result):
             VStack(alignment: .leading, spacing: 8) {
@@ -134,7 +144,8 @@ private struct ToolCard: View {
     @State private var expanded: Bool?
 
     private var diff: ToolDisplay.Diff? { ToolDisplay.diff(name: name, summary: summary) }
-    private var isOpen: Bool { expanded ?? (diff != nil) }
+    private var images: [String] { ImageRefs.forTool(summary: summary, result: result?.summary) }
+    private var isOpen: Bool { expanded ?? (diff != nil || !images.isEmpty) }
     private var edge: Color { result.map { $0.ok ? Palette.success : Palette.danger } ?? Palette.warning }
 
     var body: some View {
@@ -187,7 +198,8 @@ private struct ToolCard: View {
             .clipShape(.rect(cornerRadius: 10))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(summary).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(8)
+                ForEach(images, id: \.self) { ChatImage(path: $0) }
+                if images.isEmpty { Text(summary).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(8) }
                 if let result {
                     let p = ToolDisplay.preview(result.summary, maxLines: 12)
                     VStack(alignment: .leading, spacing: 2) {

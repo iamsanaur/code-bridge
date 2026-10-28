@@ -23,9 +23,15 @@ object ToolDisplay {
 
     /** Result text with Claude Code's `[{"type":"text","text":"…"}]` wrapping removed. */
     fun resultText(summary: String): String {
+        // An older agent sent a picture's base64, cut off mid-JSON, so it cannot be parsed.
+        if (summary.startsWith("[{\"type\":\"image\"")) return "[image]"
         if (!summary.startsWith("[")) return summary
         val blocks = runCatching { Json.parseToJsonElement(summary) as? JsonArray }.getOrNull() ?: return summary
-        val texts = blocks.mapNotNull { (it as? JsonObject)?.get("text")?.let { t -> (t as? JsonPrimitive)?.contentOrNull } }
+        // Pictures come back as base64 blocks; the app shows the file itself, so say "[image]" here.
+        val texts = blocks.mapNotNull {
+            val o = it as? JsonObject ?: return@mapNotNull null
+            if ((o["type"] as? JsonPrimitive)?.contentOrNull == "image") "[image]" else (o["text"] as? JsonPrimitive)?.contentOrNull
+        }
         return if (texts.isEmpty()) summary else texts.joinToString("\n")
     }
 

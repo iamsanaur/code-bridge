@@ -5,6 +5,7 @@ import { AgentSession, sdkMessagesClient, type MessagesClient } from '../coding/
 import { ClaudeCodeSession, findClaudeCli } from '../coding/claudeCodeSession.js';
 import { gitDiff, gitStatus } from '../git.js';
 import { createProject, ProjectError, projectsRoot } from '../projects.js';
+import { readImageChunk } from '../images.js';
 import { browseFolders, prepareExistingWorkspace, validateProjectsRoot } from '../folders.js';
 import { abbreviateHome, PathError, prepareWorkspace, workspaceInfo } from '../workspaces.js';
 import type { Logger } from '../log.js';
@@ -154,6 +155,15 @@ export class SessionManager {
         return this.createWorkspace(c);
       case 'workspace.setProjectsRoot':
         return this.setProjectsRoot(c);
+      case 'file.read':
+        return readImageChunk(this.workspace(c.workspaceId), c.path, c.offset, c.length).catch(
+          (e: Error) => {
+            throw new SessionError(
+              e instanceof PathError ? 'path_denied' : 'read_error',
+              e.message.split('\n')[0] ?? 'Cannot read that file',
+            );
+          },
+        );
       case 'workspace.browse':
         return this.browse(c);
       case 'workspace.add':

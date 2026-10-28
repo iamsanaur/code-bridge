@@ -237,3 +237,17 @@ class MessageBlocksTest {
         kotlin.test.assertEquals(1, MessageBlocks.split("no code here").size)
     }
 }
+
+class ImageRefsTest {
+    @kotlin.test.Test fun findsPathsInProse() {
+        val text = "I saved it as `screenshot.png` and also ~/app/out/shot-2.JPG, see https://example.com/pic.png too."
+        kotlin.test.assertEquals(listOf("screenshot.png", "~/app/out/shot-2.JPG"), ImageRefs.paths(text))
+        kotlin.test.assertTrue(ImageRefs.paths("nothing here, file.pngx or notpng").isEmpty())
+    }
+
+    @kotlin.test.Test fun toolCardsUseTheFileOfAReadCall() {
+        kotlin.test.assertEquals(listOf("/p/a.png"), ImageRefs.forTool("""{"file_path":"/p/a.png"}""", null))
+        kotlin.test.assertEquals(listOf("b.webp"), ImageRefs.forTool("""{"command":"ls"}""", "saved b.webp"))
+        kotlin.test.assertEquals("[image]", ToolDisplay.resultText("""[{"type":"image","source":{"type":"base64","data":"AAAA"}}]"""))
+    }
+}

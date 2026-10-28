@@ -239,6 +239,7 @@ struct SessionView: View {
             InlineError(message: runner.error ?? inputError).padding(.horizontal)
             if s.mode.isChat {
                 ChatTranscriptView(items: st.chat, revision: st.revision, working: status == .running, onRetry: retryAction)
+                    .environment(\.imageSource, imageSource(for: s))
             } else {
                 TerminalOutputView(lines: st.terminal.allLines(), revision: st.revision, dropped: st.terminal.dropped)
                     .padding(.horizontal)
@@ -308,6 +309,15 @@ struct SessionView: View {
         }
         .sensoryFeedback(.warning, trigger: st.approvals.count) { old, new in new > old }
         .sensoryFeedback(.success, trigger: status) { _, new in new == .completed }
+    }
+
+    /// Local sessions can show images from their project; cloud sessions have no files on the phone's computer.
+    private func imageSource(for s: Session) -> ImageSource? {
+        guard s.kind == .local, let device = s.deviceId, let workspace = s.workspaceId else { return nil }
+        let api = app.api
+        return ImageSource(scope: "\(device)/\(workspace)") { path in
+            try await api.fileData(deviceId: device, workspaceId: workspace, path: path)
+        }
     }
 
     private var retryAction: (() -> Void)? {

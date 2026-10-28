@@ -240,8 +240,33 @@ export const setProjectsRootCommandSchema = z.object({
   path: z.string().min(1).max(2048),
 });
 
+/** Images the phone may show are fetched in pieces, because one WebSocket frame is limited to `maxFrameBytes`. */
+export const IMAGE_MAX_BYTES = 6_000_000;
+export const IMAGE_CHUNK_BYTES = 120_000;
+
+/** Reads one chunk of an image file inside a workspace. Only png, jpg, gif and webp are ever served. */
+export const readFileCommandSchema = z.object({
+  op: z.literal('file.read'),
+  workspaceId: idSchema,
+  /** Relative to the workspace, or absolute and inside it. */
+  path: z.string().min(1).max(1024),
+  offset: z.number().int().nonnegative(),
+  length: z.number().int().min(1).max(IMAGE_CHUNK_BYTES),
+});
+
+export const readFileResultSchema = z.object({
+  /** Whole file size in bytes. */
+  size: z.number().int().nonnegative(),
+  mime: z.string().max(64),
+  offset: z.number().int().nonnegative(),
+  /** This chunk, base64. */
+  data: z.string().max(IMAGE_CHUNK_BYTES * 2),
+});
+export type ReadFileResult = z.infer<typeof readFileResultSchema>;
+
 export const agentCommandSchema = z.discriminatedUnion('op', [
   createWorkspaceCommandSchema,
+  readFileCommandSchema,
   setProjectsRootCommandSchema,
   browseFoldersCommandSchema,
   addWorkspaceCommandSchema,

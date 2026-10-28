@@ -159,7 +159,7 @@ describe('connecting with only the link', () => {
       expect(names).not.toContain('.ssh');
       const target = top.body.folders.find((f) => f.name === 'existing-app')!;
 
-      const added = await api<{ workspace: { name: string; isGitRepo: boolean } }>(
+      const added = await api<{ workspace: { id: string; name: string; isGitRepo: boolean } }>(
         ctx,
         'POST',
         `/v1/devices/${deviceId}/workspaces/add`,
@@ -198,6 +198,31 @@ describe('connecting with only the link', () => {
         });
         expect(r.status).toBeGreaterThanOrEqual(400);
       }
+      // Show an image from the project: it comes back whole even though it needs several chunks.
+      const { symlink, writeFile: write } = await import('node:fs/promises');
+      const png = Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.alloc(300_000, 9),
+      ]);
+      await write(path.join(home, 'existing-app', 'shot.png'), png);
+      await write(path.join(home, 'existing-app', 'notes.txt'), 'x');
+      await symlink('/etc/hosts', path.join(home, 'existing-app', 'link.png')).catch(
+        () => undefined,
+      );
+      const wsId = added.body.workspace.id;
+      const fileUrl = (p: string) =>
+        `/v1/devices/${deviceId}/workspaces/${wsId}/file?path=${encodeURIComponent(p)}`;
+      const img = await fetch(ctx.baseUrl + fileUrl('shot.png'), {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(img.status).toBe(200);
+      expect(img.headers.get('content-type')).toBe('image/png');
+      expect(Buffer.from(await img.arrayBuffer()).equals(png)).toBe(true);
+      for (const bad of ['notes.txt', '../x.png', 'link.png', 'missing.png']) {
+        const r = await api(ctx, 'GET', fileUrl(bad), { token });
+        expect(r.status).toBeGreaterThanOrEqual(400);
+      }
+      expect((await api(ctx, 'GET', fileUrl('shot.png'))).status).toBe(401);
       const outside = await api(
         ctx,
         'GET',

@@ -105,3 +105,12 @@ Headless Claude Code cannot ask anyone for permission, so anything outside its s
 - **Never-allowed programs are refused without asking.** `sudo`, `su`, `dd`, `shutdown`, `launchctl`, `diskutil` and the rest of the deny list are refused even inside a chain (`ls && sudo reboot`). Commands that can delete or send data (`rm`, `curl`, `git push`, …) are marked **high risk**. Secrets in the command text are redacted before it is shown.
 - **Approve means this one call.** There is no "always allow". Each new command asks again.
 - **Scope.** An approved command runs on your computer as your user, in the project folder, like anything you would type there, so only approve what you recognise. `codebridge-agent policy set allowClaudeCodeApprovals false` goes back to declining everything outside Claude Code's safe list.
+
+## Showing images from a project
+
+When Claude Code reads or saves a screenshot, the app fetches it from the computer (`file.read`, `GET /v1/devices/:id/workspaces/:id/file?path=`) and shows it in the chat. This is read-only and narrow:
+
+- **Images only.** `.png`, `.jpg`, `.jpeg`, `.gif` and `.webp`. The first bytes must match the type, so a text file renamed to `.png` is refused. SVG is never served (it can carry script).
+- **Only inside the project.** The path must be relative to the workspace or absolute inside it; it is resolved through symlinks and re-checked on the computer, so a link pointing outside is refused. Secret-looking names (`.env*`, keys) are refused.
+- **Regular files up to 6 MB.** The relay collects the file from the agent in 120 KB pieces (one WebSocket frame is limited to 256 KB) and hands the phone the finished image. The relay never stores it.
+- Pictures that Claude Code reads are no longer sent to the phone as base64 text; the tool result just says `[image]`.

@@ -24,6 +24,10 @@ import Testing
         #expect(ToolDisplay.preview("plain").more == 0)
     }
 
+    @Test func imageBlocksDoNotDumpBase64() {
+        #expect(ToolDisplay.resultText(#"[{"type":"image","source":{"type":"base64","data":"AAAA"}}]"#) == "[image]")
+    }
+
     @Test func editBecomesRedAndGreenLines() {
         let d = ToolDisplay.diff(name: "Edit", summary: #"{"file_path":"/a.ts","old_string":"a\nb","new_string":"c"}"#)
         #expect(d?.path == "/a.ts")
@@ -46,5 +50,18 @@ import Testing
     @Test func anOpenFenceIsCodeToTheEnd() {
         #expect(MessageBlocks.split("a\n```\nx = 1") == [.init(code: false, text: "a"), .init(code: true, text: "x = 1")])
         #expect(MessageBlocks.split("no code here") == [.init(code: false, text: "no code here")])
+    }
+}
+
+@Suite struct ImageRefsTests {
+    @Test func findsPathsInProse() {
+        let text = "I saved it as `screenshot.png` and also ~/app/out/shot-2.JPG, see https://example.com/pic.png too."
+        #expect(ImageRefs.paths(in: text) == ["screenshot.png", "~/app/out/shot-2.JPG"])
+        #expect(ImageRefs.paths(in: "nothing here, file.pngx or notpng").isEmpty)
+    }
+
+    @Test func toolCardsUseTheFileOfAReadCall() {
+        #expect(ImageRefs.forTool(summary: #"{"file_path":"/p/a.png"}"#, result: nil) == ["/p/a.png"])
+        #expect(ImageRefs.forTool(summary: #"{"command":"ls"}"#, result: "saved b.webp") == ["b.webp"])
     }
 }

@@ -8,6 +8,9 @@ import {
   addWorkspaceResultSchema,
   browseFoldersResultSchema,
   createWorkspaceResultSchema,
+  IMAGE_CHUNK_BYTES,
+  IMAGE_MAX_BYTES,
+  readFileResultSchema,
   setProjectsRootCommandSchema,
   setProjectsRootResultSchema,
   gitStatusResultSchema,
@@ -386,6 +389,47 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       }),
     );
     return setProjectsRootResultSchema.parse(result);
+  });
+
+  /**
+   * An image from a project on the computer, for the chat. The relay collects it from the agent in pieces (one
+   * WebSocket frame is limited) and sends the phone the finished file. Only images, only inside the project.
+   */
+  app.get('/v1/devices/:deviceId/workspaces/:workspaceId/file', auth, async (req, reply) => {
+    const { deviceId, workspaceId } = z
+      .object({ deviceId: uuidSchema, workspaceId: idSchema })
+      .parse(req.params);
+    const { path } = z.object({ path: z.string().min(1).max(1024) }).parse(req.query);
+    const dev = await loadDevice(deviceId, req.auth!.userId);
+    const chunks: Buffer[] = [];
+    let mime = 'application/octet-stream';
+    let size = Infinity;
+    for (let offset = 0; offset < size;) {
+      const part = readFileResultSchema.parse(
+        assertAck(
+          await relay.sendCommand(dev.id, randomUUID(), {
+            op: 'file.read',
+            workspaceId,
+            path,
+            offset,
+            length: IMAGE_CHUNK_BYTES,
+          }),
+        ),
+      );
+      if (part.size > IMAGE_MAX_BYTES) throw badRequest('too_large', 'That image is too large');
+      mime = part.mime;
+      size = part.size;
+      const bytes = Buffer.from(part.data, 'base64');
+      if (bytes.length === 0) break;
+      chunks.push(bytes);
+      offset += bytes.length;
+    }
+    return reply
+      .header('content-type', mime)
+      .header('content-disposition', 'inline')
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, max-age=300')
+      .send(Buffer.concat(chunks));
   });
 
   app.get('/v1/devices/:deviceId/workspaces/:workspaceId/git/status', auth, async (req) => {

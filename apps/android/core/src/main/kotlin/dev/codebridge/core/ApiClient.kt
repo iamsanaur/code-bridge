@@ -244,6 +244,36 @@ class ApiClient(
             idem(),
         )
 
+    /**
+     * An image from a project on the computer (png, jpg, gif or webp, at most 6 MB). The relay gathers it from the
+     * computer in pieces; only files inside the project are ever served.
+     */
+    suspend fun fileBytes(deviceId: String, workspaceId: String, path: String): ByteArray {
+        val url = baseUrl + "/v1/devices/$deviceId/workspaces/$workspaceId/file?path=" + java.net.URLEncoder.encode(path, "UTF-8")
+        suspend fun fetch(token: String?): ByteArray = withContext(Dispatchers.IO) {
+            val builder = Request.Builder().url(url).header("Accept", "image/*").get()
+            if (token != null) builder.header("Authorization", "Bearer $token")
+            val response = try {
+                http.newCall(builder.build()).execute()
+            } catch (e: IOException) {
+                throw ApiException(0, "network_error", "Cannot reach the CodeBridge server. Check your connection.")
+            }
+            response.use {
+                if (!it.isSuccessful) {
+                    val err = runCatching { ProtocolJson.decodeFromString(ApiErrorBody.serializer(), it.body.string()) }.getOrNull()
+                    throw ApiException(it.code, err?.code ?: "http_error", err?.message ?: "Request failed (${it.code})")
+                }
+                it.body.bytes()
+            }
+        }
+        val token = freshAccessToken()
+        return try {
+            fetch(token)
+        } catch (e: ApiException) {
+            if (e.status == 401 && tokens != null && refresh(token)) fetch(tokens?.accessToken) else throw e
+        }
+    }
+
     suspend fun signal(sessionId: String, terminate: Boolean) {
         request("POST", "/v1/sessions/$sessionId/signal", JsonObject.serializer(), encode(mapOf("signal" to if (terminate) "terminate" else "interrupt")), idem())
     }

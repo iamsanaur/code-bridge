@@ -4,7 +4,7 @@ import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import { AgentSession, type MessagesClient } from '../src/coding/agentSession.js';
-import { ClaudeCodeSession } from '../src/coding/claudeCodeSession.js';
+import { ClaudeCodeSession, toolResultText } from '../src/coding/claudeCodeSession.js';
 import type { AgentConfig } from '../src/config.js';
 import { EventLog, tempWorkspace, testConfig } from './helpers.js';
 
@@ -371,5 +371,17 @@ describe.skipIf(process.platform === 'win32')('ClaudeCodeSession permission mode
     const args = await runFake({ allowClaudeCodeEdits: false, allowClaudeCodeApprovals: false });
     expect(args).not.toContain('--permission-mode');
     expect(args).not.toContain('--permission-prompt-tool');
+  });
+});
+
+describe('toolResultText', () => {
+  it('keeps text, turns pictures into [image] and never dumps base64', () => {
+    expect(toolResultText('plain')).toBe('plain');
+    expect(
+      toolResultText([
+        { type: 'image', source: { type: 'base64', data: 'A'.repeat(5000) } },
+        { type: 'text', text: 'caption' },
+      ]),
+    ).toBe('[image]\ncaption');
   });
 });

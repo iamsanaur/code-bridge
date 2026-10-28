@@ -1,6 +1,15 @@
 package com.e404.codebridge.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -29,6 +38,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
+import dev.codebridge.core.ImageRefs
 import dev.codebridge.core.MessageBlocks
 import dev.codebridge.core.ToolDisplay
 import kotlinx.coroutines.delay
@@ -68,6 +78,92 @@ import com.e404.codebridge.ui.theme.Mono
 import dev.codebridge.core.ChatItem
 import dev.codebridge.core.PendingApproval
 
+/** Where chat images come from: the session's computer and project. Null for sessions with no project (cloud). */
+class ImageSource(val scope: String, val load: suspend (String) -> ByteArray)
+
+val LocalImageSource = androidx.compose.runtime.compositionLocalOf<ImageSource?> { null }
+
+private val imageCache = object : android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(24) {}
+
+/** A screenshot or picture that Claude saved or read in the project, fetched from the computer on demand. */
+@Composable
+private fun ChatImage(path: String) {
+    val source = LocalImageSource.current ?: return
+    val key = source.scope + "|" + path
+    val name = path.substringAfterLast('/')
+    var enlarged by remember { mutableStateOf(false) }
+    val state by produceState<Result<androidx.compose.ui.graphics.ImageBitmap>?>(initialValue = imageCache.get(key)?.let { Result.success(it) }, key) {
+        if (value == null) {
+            value = runCatching {
+                val bytes = source.load(path)
+                val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: error("not a picture")
+                bmp.asImageBitmap().also { imageCache.put(key, it) }
+            }
+        }
+    }
+    val result = state
+    when {
+        result == null -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+            Text(name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        result.isFailure -> Text(
+            "$name: ${(result.exceptionOrNull() as? dev.codebridge.core.ApiException)?.message ?: "could not be loaded"}",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        else -> {
+            val image = result.getOrThrow()
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                androidx.compose.foundation.Image(
+                    bitmap = image,
+                    contentDescription = "Image $name",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.heightIn(max = 260.dp).clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Open full screen") { enlarged = true },
+                )
+                Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (enlarged) ImageViewer(image, name) { enlarged = false }
+        }
+    }
+}
+
+/** Full-screen picture with pinch to zoom, pan and double-tap to zoom. */
+@Composable
+private fun ImageViewer(image: androidx.compose.ui.graphics.ImageBitmap, name: String, onClose: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            androidx.compose.foundation.Image(
+                bitmap = image,
+                contentDescription = "Image $name",
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 6f)
+                            offset = if (scale == 1f) androidx.compose.ui.geometry.Offset.Zero else offset + pan
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(onDoubleTap = {
+                            scale = if (scale > 1f) 1f else 2.5f
+                            offset = androidx.compose.ui.geometry.Offset.Zero
+                        })
+                    }
+                    .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y },
+            )
+            androidx.compose.material3.IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+            }
+        }
+    }
+}
+
 private val ClaudeCoral = Color(0xFFD97757)
 private val UserBlue = Color(0xFF2563EB)
 
@@ -79,10 +175,22 @@ private val UserBlue = Color(0xFF2563EB)
 fun ChatTranscript(items: List<ChatItem>, revision: Long, onRetry: (() -> Unit)?, modifier: Modifier = Modifier, working: Boolean = false) {
     val state = rememberLazyListState()
     val rows = items.size + if (working) 1 else 0
-    // Stay pinned to the newest line: jump to the last row, then to the very end of it, because a long reply is taller
-    // than the screen and scrolling to the row's top would leave its end below the fold.
+    // Stay on the newest line while text streams in, history loads and pictures arrive, until the reader scrolls up.
+    // Jump to the last row and then to the very end of it, because a long reply is taller than the screen.
+    var pinned by remember { mutableStateOf(true) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.isScrollInProgress }.collect { moving -> if (!moving) pinned = !state.canScrollForward }
+    }
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.totalItemsCount to state.layoutInfo.visibleItemsInfo.sumOf { it.size } }.collect {
+            if (pinned && state.layoutInfo.totalItemsCount > 0) {
+                state.scrollToItem(state.layoutInfo.totalItemsCount - 1)
+                state.scrollBy(1_000_000f)
+            }
+        }
+    }
     LaunchedEffect(revision, working) {
-        if (rows > 0) {
+        if (rows > 0 && pinned) {
             state.scrollToItem(rows - 1)
             state.scrollBy(1_000_000f)
         }
@@ -177,6 +285,7 @@ private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?) 
                     }
                 }
             }
+            remember(item.text) { ImageRefs.paths(item.text) }.forEach { ChatImage(it) }
         }
         is ChatItem.Tool -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (startsRun) ClaudeHeader()
@@ -202,7 +311,8 @@ private fun ToolCard(item: ChatItem.Tool) {
     val c = CodeBridgeTheme.colors
     val diff = remember(item.summary) { ToolDisplay.diff(item.summary) }
     var expanded by remember(item.id) { mutableStateOf<Boolean?>(null) }
-    val open = expanded ?: (diff != null)
+    val images = remember(item.summary, item.result?.summary) { ImageRefs.forTool(item.summary, item.result?.summary) }
+    val open = expanded ?: (diff != null || images.isNotEmpty())
     val result = item.result
     val edge = when {
         result == null -> c.warning
@@ -248,7 +358,8 @@ private fun ToolCard(item: ChatItem.Tool) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(panel).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SelectionContainer {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(item.summary, fontFamily = Mono, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 8, overflow = TextOverflow.Ellipsis)
+                                images.forEach { ChatImage(it) }
+                                if (images.isEmpty()) Text(item.summary, fontFamily = Mono, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 8, overflow = TextOverflow.Ellipsis)
                                 if (result != null) {
                                     val (lines, more) = ToolDisplay.preview(result.summary, maxLines = 12)
                                     val tone = if (result.ok) MaterialTheme.colorScheme.onSurface else c.danger

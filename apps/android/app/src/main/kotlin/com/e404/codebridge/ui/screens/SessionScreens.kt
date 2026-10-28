@@ -42,6 +42,8 @@ import com.e404.codebridge.ui.LocalContainer
 import com.e404.codebridge.ui.Routes
 import com.e404.codebridge.ui.components.ApprovalCard
 import com.e404.codebridge.ui.components.ChatTranscript
+import com.e404.codebridge.ui.components.ImageSource
+import com.e404.codebridge.ui.components.LocalImageSource
 import com.e404.codebridge.ui.components.Composer
 import com.e404.codebridge.ui.components.ConfirmDialog
 import com.e404.codebridge.ui.components.EmptyState
@@ -300,7 +302,14 @@ fun SessionScreen(nav: NavController, id: String) {
                 else -> null
             }
             if (s.mode.isChat) {
-                ChatTranscript(state.chat, revision, onRetry = lastPrompt?.let { p -> { action.run { api.prompt(id, p) } } }, modifier = Modifier.weight(1f).fillMaxWidth(), working = status == dev.codebridge.core.SessionStatus.RUNNING)
+                val imageSource = remember(s.deviceId, s.workspaceId, s.kind) {
+                    if (s.kind == SessionKind.LOCAL && s.deviceId != null && s.workspaceId != null)
+                        ImageSource("${s.deviceId}/${s.workspaceId}") { path -> api.fileBytes(s.deviceId!!, s.workspaceId!!, path) }
+                    else null
+                }
+                androidx.compose.runtime.CompositionLocalProvider(LocalImageSource provides imageSource) {
+                    ChatTranscript(state.chat, revision, onRetry = lastPrompt?.let { p -> { action.run { api.prompt(id, p) } } }, modifier = Modifier.weight(1f).fillMaxWidth(), working = status == dev.codebridge.core.SessionStatus.RUNNING)
+                }
                 Composer(
                     onSend = { text -> lastPrompt = text; action.run { api.prompt(id, text) } },
                     disabledReason = disabledReason ?: if (status == dev.codebridge.core.SessionStatus.RUNNING && s.mode == SessionMode.CLAUDE_CODE) "Claude Code is working…" else null,

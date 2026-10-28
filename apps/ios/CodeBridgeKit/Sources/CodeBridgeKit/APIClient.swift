@@ -249,6 +249,21 @@ public actor APIClient {
         try await request("PUT", "/v1/devices/\(deviceId)/projects-root", body: ["path": path], headers: idem())
     }
 
+    /// An image from a project on the computer (png, jpg, gif or webp, at most 6 MB). The relay gathers it from the
+    /// computer in pieces; only files inside the project are ever served.
+    public func fileData(deviceId: String, workspaceId: String, path: String) async throws -> Data {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#?")
+        let url = "/v1/devices/\(deviceId)/workspaces/\(workspaceId)/file?path=" + (path.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")
+        let token = await freshAccessToken()
+        do {
+            return try await raw("GET", url, body: nil, headers: ["Accept": "image/*"], token: token)
+        } catch let e as APIError where e.status == 401 && tokens != nil {
+            guard await refresh(stale: token) else { throw e }
+            return try await raw("GET", url, body: nil, headers: ["Accept": "image/*"], token: tokens?.accessToken)
+        }
+    }
+
     public func signal(_ id: String, terminate: Bool) async throws {
         try await send("POST", "/v1/sessions/\(id)/signal", body: ["signal": terminate ? "terminate" : "interrupt"], idempotent: true)
     }

@@ -54,6 +54,23 @@ interface StreamLine {
   result?: string;
 }
 
+/**
+ * A tool result as readable text. Pictures arrive as base64 blocks, which would fill the whole summary with noise, so
+ * they become "[image]" (the app fetches the file itself).
+ */
+export function toolResultText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    const parts = content.map((c) => {
+      const block = c as { type?: string; text?: unknown };
+      if (block.type === 'image') return '[image]';
+      return typeof block.text === 'string' ? block.text : JSON.stringify(c);
+    });
+    return parts.join('\n');
+  }
+  return JSON.stringify(content ?? '');
+}
+
 export class ClaudeCodeSession extends BaseSession {
   private child: ChildProcess | null = null;
   private cliSessionId: string | null = null;
@@ -209,8 +226,7 @@ export class ClaudeCodeSession extends BaseSession {
     if (msg.type === 'user') {
       for (const b of msg.message?.content ?? []) {
         if (b.type === 'tool_result') {
-          const content =
-            typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '');
+          const content = toolResultText(b.content);
           this.emit({
             kind: 'agent.tool_result',
             toolUseId: String(b.tool_use_id ?? ''),
