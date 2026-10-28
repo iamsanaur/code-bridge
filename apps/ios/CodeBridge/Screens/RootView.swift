@@ -31,6 +31,8 @@ struct RootView: View {
                 NavigationStack { SetupRelayView() }
             } else if app.user == nil {
                 NavigationStack { WelcomeView() }
+            } else if debugScreen == "folders" {
+                DebugFolderPicker()
             } else if let debugSession {
                 NavigationStack { SessionView(sessionId: debugSession) }
             } else {
@@ -122,5 +124,18 @@ extension View {
             case .usage: UsageView()
             }
         }
+    }
+}
+
+/// Simulator seam (CODEBRIDGE_DEBUG_SCREEN=folders): opens the folder picker on the first online computer.
+/// Only reachable in DEBUG builds, where `debugScreen` can be set.
+private struct DebugFolderPicker: View {
+    @Environment(AppModel.self) private var app
+    @State private var device: Device?
+    var body: some View {
+        Group {
+            if let device { NavigationStack { FolderPickerView(device: device, onAdded: { _ in }, startPath: ProcessInfo.processInfo.environment["CODEBRIDGE_DEBUG_PATH"]) } } else { ProgressView() }
+        }
+        .task { device = try? await app.api.devices().first { $0.online } }
     }
 }

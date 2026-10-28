@@ -55,11 +55,11 @@ The app has a **Set up a relay** screen with both commands, a Copy button and a 
 <table>
   <tr>
     <td><b>Android</b></td>
-    <td>Download <a href="releases/CodeBridge-0.2.0.apk"><code>CodeBridge-0.2.0.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
+    <td>Download <a href="releases/CodeBridge-0.3.0.apk"><code>CodeBridge-0.3.0.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
   </tr>
   <tr>
     <td><b>iOS</b></td>
-    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.2.0.ipa"><code>CodeBridge-0.2.0.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
+    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.3.0.ipa"><code>CodeBridge-0.3.0.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
   </tr>
 </table>
 
@@ -92,6 +92,26 @@ Choose your computer, then tap **Add existing folder** to browse your computer's
   </tr>
   <tr>
     <td colspan="3" align="center"><sub><b>Android</b>: Jetpack Compose with a glass control layer, in light and dark</sub></td>
+  </tr>
+</table>
+
+### Chat and folders
+
+<table>
+  <tr>
+    <th align="center">Chat with Claude Code</th>
+    <th align="center">Add an existing folder</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/ios-chat.png" width="260" alt="iOS chat: Claude Code finds a bug and fixes it, with the edit shown as red and green lines" /></td>
+    <td align="center"><img src="docs/screenshots/ios-add-folder.png" width="260" alt="iOS folder picker showing the project folders inside the computer's home folder" /></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/android-chat-light.png" width="260" alt="Android chat, light" /></td>
+    <td align="center"><img src="docs/screenshots/android-add-folder-dark.png" width="260" alt="Android folder picker, dark" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub>Replies read like Claude Code's own apps, and every tool call is a card you can open. Edits show the changed lines. Pick any project folder inside your home folder; hidden and system folders are never offered.</sub></td>
   </tr>
 </table>
 
@@ -149,7 +169,7 @@ cd releases && shasum -a 256 -c SHA256SUMS
 ```
 
 The APK is signed with the project's release key. Check its certificate with
-`apksigner verify --print-certs CodeBridge-0.2.0.apk`.
+`apksigner verify --print-certs CodeBridge-0.3.0.apk`.
 
 ## Under the hood
 

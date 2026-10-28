@@ -465,6 +465,8 @@ struct NewProjectView: View {
 struct FolderPickerView: View {
     let device: Device
     let onAdded: (WorkspaceInfo) -> Void
+    /// Where to start; the home folder when nil.
+    var startPath: String?
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var listing: BrowseFoldersResult?
@@ -515,7 +517,7 @@ struct FolderPickerView: View {
             }
         }
         .overlay { if loading { ProgressView().controlSize(.large) } }
-        .task { if listing == nil { load(nil) } }
+        .task { if listing == nil { load(startPath) } }
     }
 
     private func load(_ path: String?) {
