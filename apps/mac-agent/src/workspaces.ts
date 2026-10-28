@@ -60,7 +60,8 @@ async function canonical(p: string): Promise<string> {
 
 /**
  * Validates and canonicalises a directory for use as a workspace root.
- * Workspaces can only be added on the Mac itself (CLI), never from the phone.
+ * The CLI can add any folder this allows; the phone can add one only through `folders.ts`, which narrows it
+ * further (inside the home directory, nothing hidden).
  */
 export async function prepareWorkspace(
   input: string,

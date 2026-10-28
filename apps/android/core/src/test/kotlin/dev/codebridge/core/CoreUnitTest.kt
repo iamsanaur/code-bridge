@@ -200,3 +200,26 @@ class ProjectNameTest {
         assertTrue(r.gitInit)
     }
 }
+
+class ToolDisplayTest {
+    @kotlin.test.Test fun headlinePicksTheCommand() {
+        kotlin.test.assertEquals("npm test", ToolDisplay.headline("""{"command":"npm test","description":"Run tests"}"""))
+        kotlin.test.assertEquals("/a/b.ts", ToolDisplay.headline("""{"file_path":"/a/b.ts","old_string":"x"}"""))
+        kotlin.test.assertNull(ToolDisplay.headline("{}"))
+    }
+
+    @kotlin.test.Test fun resultUnwrapsAndPreviews() {
+        val wrapped = """[{"type":"text","text":"one\ntwo\nthree\nfour\nfive"}]"""
+        kotlin.test.assertEquals(listOf("one", "two", "three"), ToolDisplay.preview(wrapped).first)
+        kotlin.test.assertEquals(2, ToolDisplay.preview(wrapped).second)
+        kotlin.test.assertEquals(0, ToolDisplay.preview("plain").second)
+    }
+
+    @kotlin.test.Test fun editBecomesRedAndGreenLines() {
+        val d = ToolDisplay.diff("""{"file_path":"/a.ts","old_string":"a\nb","new_string":"c"}""")!!
+        kotlin.test.assertEquals("/a.ts", d.path)
+        kotlin.test.assertEquals(listOf(false, false, true), d.lines.map { it.added })
+        kotlin.test.assertNull(ToolDisplay.diff("""{"command":"ls"}"""))
+        kotlin.test.assertNull(ToolDisplay.diff("""{"file_path":"/a.ts","old_string":"truncat"""))
+    }
+}

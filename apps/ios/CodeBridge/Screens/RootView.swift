@@ -14,6 +14,15 @@ struct RootView: View {
         #endif
     }
 
+    /// CODEBRIDGE_DEBUG_SESSION=<session id> opens that session straight away (DEBUG builds only).
+    private var debugSession: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["CODEBRIDGE_DEBUG_SESSION"]
+        #else
+        nil
+        #endif
+    }
+
     var body: some View {
         Group {
             if !app.ready {
@@ -22,6 +31,8 @@ struct RootView: View {
                 NavigationStack { SetupRelayView() }
             } else if app.user == nil {
                 NavigationStack { WelcomeView() }
+            } else if let debugSession {
+                NavigationStack { SessionView(sessionId: debugSession) }
             } else {
                 MainTabs()
             }

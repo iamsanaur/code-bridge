@@ -73,3 +73,14 @@ Workspaces were originally add-on-the-computer-only. The phone can now start a n
 - The folder is created with a non-recursive `mkdir`, so an existing folder, file or symlink is **never adopted**; the real path is re-checked to be a plain directory inside the real projects folder.
 - It cannot widen access to existing data. At most 100 workspaces; the owner can turn it off (`allowWorkspaceCreation false`), and the agent advertises the setting so the app hides the button.
 - Every request is audited (`workspace.create`) on the relay.
+
+## Adding an existing folder from the phone
+
+The phone can also pick a folder that already exists on the computer, so Claude Code can work on a real project. This **does** widen what a paired phone can reach (an existing folder, not just a brand-new one), so it is limited and switchable:
+
+- **Only inside your home directory.** Browsing starts at the home folder and cannot leave it. `workspace.browse` lists sub-folders only (never files), skips hidden folders (`.ssh`, `.config`, …), app-data folders (`Library`, `AppData`) and `node_modules`, and ignores symlinks, which could point elsewhere.
+- **Re-checked on the computer.** Both `workspace.browse` and `workspace.add` resolve the path through symlinks and apply these rules again, whatever the phone or relay sent. The home folder itself, system folders and anything outside home are refused, using the same checks as `codebridge-agent workspace add`.
+- **Owner switch.** `codebridge-agent policy set allowFolderBrowse false` turns it off; the agent advertises the setting so the app hides the button. At most 100 workspaces.
+- **Audited.** `workspace.add` is recorded on the relay.
+
+A folder that is added can then be used by any session mode you allow on that computer, so keep the other switches (`allowCustomCommands`, `allowInteractiveShell`) off unless you need them.

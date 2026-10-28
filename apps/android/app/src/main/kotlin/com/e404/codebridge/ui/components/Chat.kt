@@ -1,6 +1,36 @@
 package com.e404.codebridge.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
+import dev.codebridge.core.ToolDisplay
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +38,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
@@ -38,50 +67,110 @@ import com.e404.codebridge.ui.theme.Mono
 import dev.codebridge.core.ChatItem
 import dev.codebridge.core.PendingApproval
 
+private val ClaudeCoral = Color(0xFFD97757)
+private val UserBlue = Color(0xFF2563EB)
+
+/**
+ * The conversation, laid out like Claude Code's own apps: your messages as blue bubbles, Claude's replies as plain
+ * text under a "Claude" header, and every tool call as a collapsible card (file edits show their changed lines).
+ */
 @Composable
-fun ChatTranscript(items: List<ChatItem>, revision: Long, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun ChatTranscript(items: List<ChatItem>, revision: Long, onRetry: (() -> Unit)?, modifier: Modifier = Modifier, working: Boolean = false) {
     val state = rememberLazyListState()
-    LaunchedEffect(revision) { if (items.isNotEmpty()) state.animateScrollToItem(items.lastIndex) }
-    if (items.isEmpty()) {
-        Text("Send a prompt to start.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().padding(24.dp))
-        return
+    val rows = items.size + if (working) 1 else 0
+    // Stay pinned to the newest line: jump to the last row, then to the very end of it, because a long reply is taller
+    // than the screen and scrolling to the row's top would leave its end below the fold.
+    LaunchedEffect(revision, working) {
+        if (rows > 0) {
+            state.scrollToItem(rows - 1)
+            state.scrollBy(1_000_000f)
+        }
     }
-    LazyColumn(state = state, modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(items, key = { it.id }) { item -> ChatRow(item, onRetry) }
+    LazyColumn(state = state, contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp), modifier = modifier) {
+        if (items.isEmpty()) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ClaudeMark(44)
+                    Text("Claude Code", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Runs on your computer, in this folder. Ask it to read, change or test something.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
+            ChatRow(item, startsRun = index == 0 || items[index - 1] is ChatItem.UserMessage, onRetry = onRetry)
+        }
+        if (working) item(key = "working") { WorkingLine() }
     }
 }
 
 @Composable
-private fun ChatRow(item: ChatItem, onRetry: (() -> Unit)?) {
+private fun ClaudeMark(size: Int) {
+    Box(Modifier.size(size.dp).clip(RoundedCornerShape((size * 0.28f).dp)).background(ClaudeCoral), contentAlignment = Alignment.Center) {
+        Text("✻", color = Color.White, fontSize = (size * 0.55f).sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ClaudeHeader() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        ClaudeMark(28)
+        Text("Claude", style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun WorkingLine() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.semantics { contentDescription = "Claude Code is working" }) {
+        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        Text("Working…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Bold, `code` and *italic* spans; everything else stays as typed. */
+private fun inlineMarkdown(text: String, codeColor: Color): AnnotatedString = buildAnnotatedString {
+    var i = 0
+    while (i < text.length) {
+        fun span(marker: String, style: SpanStyle): Boolean {
+            if (!text.startsWith(marker, i)) return false
+            val end = text.indexOf(marker, i + marker.length)
+            if (end <= i + marker.length) return false
+            withStyle(style) { append(text.substring(i + marker.length, end)) }
+            i = end + marker.length
+            return true
+        }
+        if (span("**", SpanStyle(fontWeight = FontWeight.Bold))) continue
+        if (span("`", SpanStyle(fontFamily = Mono, background = codeColor.copy(alpha = 0.14f)))) continue
+        append(text[i])
+        i++
+    }
+}
+
+@Composable
+private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?) {
     val c = CodeBridgeTheme.colors
     when (item) {
         is ChatItem.UserMessage -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.large, modifier = Modifier.widthIn(max = 320.dp)) {
-                SelectionContainer { Text(item.text, modifier = Modifier.padding(12.dp)) }
+            Surface(color = UserBlue, shape = RoundedCornerShape(20.dp), modifier = Modifier.widthIn(max = 320.dp)) {
+                SelectionContainer { Text(item.text, color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) }
             }
         }
-        is ChatItem.Assistant -> SelectionContainer {
-            Text(item.text + if (item.streaming) " ▍" else "", style = MaterialTheme.typography.bodyLarge)
+        is ChatItem.Assistant -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (startsRun) ClaudeHeader()
+            SelectionContainer {
+                Text(inlineMarkdown(item.text, MaterialTheme.colorScheme.onSurface) + AnnotatedString(if (item.streaming) " ▍" else ""), style = MaterialTheme.typography.bodyLarge)
+            }
         }
-        is ChatItem.Tool -> {
-            val result = item.result
-            val color = when {
-                result == null -> c.warning
-                result.ok -> c.success
-                else -> c.danger
-            }
-            Row {
-                Surface(color = color, modifier = Modifier.padding(end = 8.dp).widthIn(min = 2.dp, max = 2.dp)) { Text(" ") }
-                Column {
-                    Text("${if (result == null) "…" else if (result.ok) "✓" else "✕"} ${item.name}", fontFamily = Mono, color = color, style = MaterialTheme.typography.labelMedium)
-                    Text(result?.summary ?: item.summary, fontFamily = Mono, style = MaterialTheme.typography.bodySmall, maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+        is ChatItem.Tool -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (startsRun) ClaudeHeader()
+            ToolCard(item)
         }
         is ChatItem.Failure -> Card(colors = CardDefaults.cardColors(containerColor = c.danger.copy(alpha = 0.12f)), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(item.code, color = c.danger, style = MaterialTheme.typography.titleSmall)
-                Text(item.message, style = MaterialTheme.typography.bodySmall)
+                SelectionContainer { Text(item.message, style = MaterialTheme.typography.bodySmall) }
                 if (item.retryable && onRetry != null) OutlinedButton(onClick = onRetry) { Text("Retry last prompt") }
             }
         }
@@ -89,6 +178,79 @@ private fun ChatRow(item: ChatItem, onRetry: (() -> Unit)?) {
     }
 }
 
+/**
+ * One tool call: a card with a coloured edge, collapsed to `Tool / argument`. Edits and writes open to show the lines
+ * they changed; other tools show what was asked and what came back.
+ */
+@Composable
+private fun ToolCard(item: ChatItem.Tool) {
+    val c = CodeBridgeTheme.colors
+    val diff = remember(item.summary) { ToolDisplay.diff(item.summary) }
+    var expanded by remember(item.id) { mutableStateOf<Boolean?>(null) }
+    val open = expanded ?: (diff != null)
+    val result = item.result
+    val edge = when {
+        result == null -> c.warning
+        result.ok -> c.success
+        else -> c.danger
+    }
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(edge))
+        Column(Modifier.padding(start = 10.dp, top = 2.dp, bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clickable(onClickLabel = if (open) "Hide details" else "Show details") { expanded = !open },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(if (open) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(item.name) }
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.outline)) { append("  /  ") }
+                        withStyle(SpanStyle(fontFamily = Mono, color = if (diff != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)) {
+                            append(diff?.path?.substringAfterLast('/') ?: ToolDisplay.headline(item.summary) ?: "Details")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                if (result == null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+            }
+            if (open) {
+                val panel = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                if (diff != null) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(panel)) {
+                        Text(diff.path, fontFamily = Mono, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.StartEllipsis, modifier = Modifier.padding(8.dp))
+                        diff.lines.forEach { l ->
+                            val tone = if (l.added) c.success else c.danger
+                            Row(Modifier.fillMaxWidth().background(tone.copy(alpha = 0.14f)).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(if (l.added) "+" else "−", fontFamily = Mono, fontSize = 12.sp, color = tone)
+                                Text(l.text.ifEmpty { " " }, fontFamily = Mono, fontSize = 12.sp)
+                            }
+                        }
+                        if (diff.more > 0) Text("… +${diff.more} more lines", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(8.dp))
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(panel).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SelectionContainer {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(item.summary, fontFamily = Mono, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 8, overflow = TextOverflow.Ellipsis)
+                                if (result != null) {
+                                    val (lines, more) = ToolDisplay.preview(result.summary, maxLines = 12)
+                                    val tone = if (result.ok) MaterialTheme.colorScheme.onSurface else c.danger
+                                    if (lines.isEmpty()) Text(if (result.ok) "Done" else "Failed", fontFamily = Mono, fontSize = 12.sp, color = tone)
+                                    lines.forEach { Text(it, fontFamily = Mono, fontSize = 12.sp, color = tone, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+                                    if (more > 0) Text("… +$more lines", fontFamily = Mono, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The prompt box: a rounded input with a send button. */
 @Composable
 fun Composer(onSend: (String) -> Unit, disabledReason: String?, busy: Boolean) {
     var text by remember { mutableStateOf("") }
@@ -97,7 +259,8 @@ fun Composer(onSend: (String) -> Unit, disabledReason: String?, busy: Boolean) {
             value = text,
             onValueChange = { text = it },
             enabled = disabledReason == null,
-            placeholder = { Text(disabledReason ?: "Ask the agent to change, test or explain something…") },
+            placeholder = { Text(disabledReason ?: "Ask Claude anything…") },
+            shape = RoundedCornerShape(22.dp),
             maxLines = 6,
             modifier = Modifier.weight(1f),
         )

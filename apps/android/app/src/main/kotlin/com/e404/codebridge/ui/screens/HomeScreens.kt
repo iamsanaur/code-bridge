@@ -226,6 +226,9 @@ fun DeviceScreen(nav: NavController, id: String) {
             if (d.capabilities?.canCreateWorkspaces == true) {
                 Button(onClick = { nav.navigate(Routes.newProject(d.id)) }, enabled = d.online, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("New project") }
             }
+            if (d.capabilities?.canBrowseFolders == true) {
+                OutlinedButton(onClick = { nav.navigate(Routes.addFolder(d.id)) }, enabled = d.online, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Add existing folder") }
+            }
             if (d.workspaces.isEmpty()) {
                 Notice(
                     if (d.capabilities?.canCreateWorkspaces == true) "No projects yet. Create one above, or on the computer run: codebridge-agent workspace add ~/path/to/project"
@@ -256,6 +259,7 @@ fun DeviceScreen(nav: NavController, id: String) {
                         "Custom commands" to if (c.allowCustomCommands) "allowed" else "disabled",
                         "Interactive shell" to if (c.allowInteractiveShell) "allowed" else "disabled",
                         "New projects from this phone" to if (c.canCreateWorkspaces == true) "allowed" else "disabled",
+                        "Pick existing folders" to if (c.canBrowseFolders == true) "allowed" else "disabled",
                     ).forEach { (k, v) -> Text("$k: $v", style = MaterialTheme.typography.bodySmall) }
                 }
             }
@@ -383,6 +387,53 @@ fun NewProjectScreen(nav: NavController, deviceId: String) {
         action.error?.let { Notice(it, NoticeTone.DANGER) }
         Button(onClick = { create() }, enabled = canCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Text(if (action.busy) "Creating…" else "Create project")
+        }
+    }
+}
+
+
+/**
+ * Pick a folder that already exists on the computer. Only folders inside its home directory are shown (no hidden or
+ * system folders), and the computer checks the choice again before adding it.
+ */
+@Composable
+fun AddFolderScreen(nav: NavController, deviceId: String) {
+    val api = LocalContainer.current.api
+    var path by remember { mutableStateOf<String?>(null) }
+    val listing = rememberLoad(deviceId, path) { api.browseFolders(deviceId, path) }
+    val action = rememberAction()
+    ScreenScaffold("Add folder", nav) {
+        LoadContent(listing) { l ->
+            Text(l.displayPath, fontFamily = Mono, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (l.canAdd) "Choose “Use this folder” to work in it, or open a folder inside it." else "Open the folder that holds your project.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            action.error?.let { Notice(it, NoticeTone.DANGER) }
+            Button(
+                onClick = {
+                    action.run {
+                        val result = api.addWorkspace(deviceId, l.path)
+                        nav.navigate(Routes.newSession(deviceId, result.workspace.id)) { popUpTo(Routes.ADD_FOLDER) { inclusive = true } }
+                    }
+                },
+                enabled = l.canAdd && !action.busy,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+            ) { Text(if (action.busy) "Adding…" else "Use this folder") }
+            l.parentPath?.let { parent ->
+                OutlinedButton(onClick = { path = parent }, modifier = Modifier.fillMaxWidth()) { Text("Up one folder") }
+            }
+            if (l.folders.isEmpty()) EmptyState("No folders here")
+            l.folders.forEach { f ->
+                Card(onClick = { path = f.path }, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(f.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        if (f.isGitRepo) Text("git", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            }
+            if (l.truncated) Text("Only the first folders are shown.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

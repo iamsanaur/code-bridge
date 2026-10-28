@@ -5,7 +5,8 @@ import { AgentSession, sdkMessagesClient, type MessagesClient } from '../coding/
 import { ClaudeCodeSession, findClaudeCli } from '../coding/claudeCodeSession.js';
 import { gitDiff, gitStatus } from '../git.js';
 import { createProject, ProjectError } from '../projects.js';
-import { prepareWorkspace, workspaceInfo } from '../workspaces.js';
+import { browseFolders, prepareExistingWorkspace } from '../folders.js';
+import { PathError, prepareWorkspace, workspaceInfo } from '../workspaces.js';
 import type { Logger } from '../log.js';
 import { buildChildEnv, classifyCommand, resolveExecutable } from '../policy.js';
 import { defaultShell } from '../platform.js';
@@ -149,6 +150,10 @@ export class SessionManager {
       }
       case 'workspace.create':
         return this.createWorkspace(c);
+      case 'workspace.browse':
+        return this.browse(c);
+      case 'workspace.add':
+        return this.addExisting(c);
       case 'git.status':
         return gitStatus(this.workspace(c.workspaceId), this.deps.getConfig().policy).catch(
           (e: Error) => {
@@ -166,6 +171,43 @@ export class SessionManager {
             );
           },
         );
+    }
+  }
+
+  private requireFolderBrowse() {
+    const config = this.deps.getConfig();
+    if (!config.policy.allowFolderBrowse || !this.deps.addWorkspace)
+      throw new SessionError(
+        'policy_denied',
+        'Picking existing folders from the phone is turned off on this computer. Turn it on with `codebridge-agent policy set allowFolderBrowse true`.',
+      );
+    return config;
+  }
+
+  private async browse(c: Extract<AgentCommand, { op: 'workspace.browse' }>) {
+    this.requireFolderBrowse();
+    try {
+      return await browseFolders(c.path);
+    } catch (err) {
+      if (err instanceof PathError) throw new SessionError('path_denied', err.message);
+      throw err;
+    }
+  }
+
+  private async addExisting(c: Extract<AgentCommand, { op: 'workspace.add' }>) {
+    const config = this.requireFolderBrowse();
+    try {
+      const { ws, added } = await prepareExistingWorkspace(c.path, config.workspaces);
+      if (added) {
+        if (config.workspaces.length >= MAX_WORKSPACES)
+          throw new SessionError('limit', `This computer already has ${MAX_WORKSPACES} workspaces`);
+        await this.deps.addWorkspace!(ws);
+        this.deps.log.info('existing folder added from the phone', { name: ws.name });
+      }
+      return { workspace: workspaceInfo(ws) };
+    } catch (err) {
+      if (err instanceof PathError) throw new SessionError('path_denied', err.message);
+      throw err;
     }
   }
 
@@ -332,6 +374,7 @@ export class SessionManager {
       allowCustomCommands: policy.allowCustomCommands,
       allowInteractiveShell: policy.allowInteractiveShell,
       canCreateWorkspaces: policy.allowWorkspaceCreation,
+      canBrowseFolders: policy.allowFolderBrowse,
       claudeCodeAvailable: policy.allowClaudeCode && findClaudeCli(policy) !== null,
     };
   }

@@ -4,6 +4,9 @@ import { z } from 'zod';
 import {
   createLocalSessionBodySchema,
   createWorkspaceCommandSchema,
+  addWorkspaceCommandSchema,
+  addWorkspaceResultSchema,
+  browseFoldersResultSchema,
   createWorkspaceResultSchema,
   gitStatusResultSchema,
   idSchema,
@@ -328,6 +331,38 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       }),
     );
     return createWorkspaceResultSchema.parse(result);
+  });
+
+  /** Lists the folders inside a folder of the computer's home directory (the phone's folder picker). */
+  app.get('/v1/devices/:deviceId/browse', auth, async (req) => {
+    const { deviceId } = z.object({ deviceId: uuidSchema }).parse(req.params);
+    const { path } = z.object({ path: z.string().min(1).max(2048).optional() }).parse(req.query);
+    const dev = await loadDevice(deviceId, req.auth!.userId);
+    const result = assertAck(
+      await relay.sendCommand(dev.id, randomUUID(), { op: 'workspace.browse', path }),
+    );
+    return browseFoldersResultSchema.parse(result);
+  });
+
+  /** Adds an existing folder that the computer's own checks accept as a workspace. */
+  app.post('/v1/devices/:deviceId/workspaces/add', auth, async (req) => {
+    const { deviceId } = z.object({ deviceId: uuidSchema }).parse(req.params);
+    const body = addWorkspaceCommandSchema.omit({ op: true }).parse(req.body);
+    const dev = await loadDevice(deviceId, req.auth!.userId);
+    await audit(db, {
+      action: 'workspace.add',
+      userId: req.auth!.userId,
+      deviceId,
+      ip: req.ip,
+      metadata: { path: body.path.slice(0, 200) },
+    });
+    const result = assertAck(
+      await relay.dispatchIdempotent(req.auth!.userId, dev.id, idempotencyKey(req), {
+        op: 'workspace.add',
+        path: body.path,
+      }),
+    );
+    return addWorkspaceResultSchema.parse(result);
   });
 
   app.get('/v1/devices/:deviceId/workspaces/:workspaceId/git/status', auth, async (req) => {

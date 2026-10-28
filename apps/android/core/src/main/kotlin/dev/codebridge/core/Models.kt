@@ -112,11 +112,29 @@ data class Capabilities(
     val allowInteractiveShell: Boolean,
     /** The owner allows creating new project folders from the phone. Older agents don't send it. */
     val canCreateWorkspaces: Boolean? = null,
+    /** The owner allows picking existing folders from the phone. Older agents don't send it. */
+    val canBrowseFolders: Boolean? = null,
 )
 
 @Serializable data class WorkspaceInfo(val id: String, val name: String, val displayPath: String, val isGitRepo: Boolean)
 
 @Serializable data class CreateWorkspaceResult(val workspace: WorkspaceInfo, val gitInit: Boolean)
+
+@Serializable data class FolderEntry(val name: String, val path: String, val isGitRepo: Boolean)
+
+@Serializable
+data class BrowseFoldersResult(
+    val displayPath: String,
+    val path: String,
+    val parentPath: String? = null,
+    /** False for the home folder itself: pick a project inside it. */
+    val canAdd: Boolean,
+    val isGitRepo: Boolean,
+    val folders: List<FolderEntry>,
+    val truncated: Boolean,
+)
+
+@Serializable data class AddWorkspaceResult(val workspace: WorkspaceInfo)
 
 @Serializable data class PresetInfo(val id: String, val label: String, val argv: List<String>)
 

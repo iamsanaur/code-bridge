@@ -8,6 +8,10 @@ enum Palette {
     static let warning = Color(red: 0.96, green: 0.77, blue: 0.32)
     static let danger = Color(red: 1.0, green: 0.42, blue: 0.42)
     static let success = local
+    /// Claude Code's own orange-coral, used only for its name and spinner.
+    static let claude = Color(hex: 0xD97757)
+    /// Your own messages in the chat.
+    static let userBubble = Color(hex: 0x2563EB)
     static let terminalBackground = Color(red: 0.02, green: 0.03, blue: 0.045)
     static let terminalText = Color(red: 0.84, green: 0.86, blue: 0.90)
 

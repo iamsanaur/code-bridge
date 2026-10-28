@@ -216,6 +216,24 @@ class ApiClient(
             idem(),
         )
 
+    /** The folders inside one folder of the computer's home directory (the home folder when [path] is null). */
+    suspend fun browseFolders(deviceId: String, path: String?): BrowseFoldersResult =
+        request(
+            "GET",
+            "/v1/devices/$deviceId/browse" + (path?.let { "?path=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""),
+            BrowseFoldersResult.serializer(),
+        )
+
+    /** Adds an existing folder as a project. The computer re-checks the path and refuses hidden, system and out-of-home folders. */
+    suspend fun addWorkspace(deviceId: String, path: String): AddWorkspaceResult =
+        request(
+            "POST",
+            "/v1/devices/$deviceId/workspaces/add",
+            AddWorkspaceResult.serializer(),
+            encode(mapOf("path" to path)),
+            idem(),
+        )
+
     suspend fun signal(sessionId: String, terminate: Boolean) {
         request("POST", "/v1/sessions/$sessionId/signal", JsonObject.serializer(), encode(mapOf("signal" to if (terminate) "terminate" else "interrupt")), idem())
     }

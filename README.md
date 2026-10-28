@@ -67,7 +67,7 @@ Open the app, tap **Scan QR code**, scan the code from step 1, confirm the relay
 
 ### 3. Run a session
 
-Choose your computer and either pick a project folder or tap **New project** to start a fresh one (a new folder on your computer, optionally with `git init`), then start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
+Choose your computer, then tap **Add existing folder** to browse your computer's home folder and pick a project that is already there, or tap **New project** to start a fresh one (a new folder on your computer, optionally with `git init`), then start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
 
 ## Screenshots
 
@@ -114,14 +114,14 @@ Every command is checked again on the computer against the policy you set there,
 
 ## Safety
 
-|                  |                                                                                                                                                                         |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Folders**      | Only folders you register on the computer are reachable. System folders and your whole home directory are refused. Paths are symlink-safe.                              |
-| **Commands**     | Phone commands are limited to presets unless you turn on custom commands. Risky programs need approval on the phone, and some (`sudo`, `diskpart`, `reg`, …) never run. |
-| **Shells**       | Interactive shells are off until you enable them on the computer.                                                                                                       |
-| **Secrets**      | Stored in the OS credential store (Keychain, Credential Manager, Android Keystore). Child processes get a minimal environment.                                          |
-| **Relay link**   | The QR code is a password: it gives full control of every computer on that relay. Don't share a screenshot of it.                                                       |
-| **Confirmation** | Opening a connect link asks you to confirm the relay before anything is sent to it.                                                                                     |
+|                  |                                                                                                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Folders**      | Only registered folders are reachable. From the phone you can pick one inside your home folder (never hidden or system folders); you can switch that off. Paths are symlink-safe. |
+| **Commands**     | Phone commands are limited to presets unless you turn on custom commands. Risky programs need approval on the phone, and some (`sudo`, `diskpart`, `reg`, …) never run.           |
+| **Shells**       | Interactive shells are off until you enable them on the computer.                                                                                                                 |
+| **Secrets**      | Stored in the OS credential store (Keychain, Credential Manager, Android Keystore). Child processes get a minimal environment.                                                    |
+| **Relay link**   | The QR code is a password: it gives full control of every computer on that relay. Don't share a screenshot of it.                                                                 |
+| **Confirmation** | Opening a connect link asks you to confirm the relay before anything is sent to it.                                                                                               |
 
 Read [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
 

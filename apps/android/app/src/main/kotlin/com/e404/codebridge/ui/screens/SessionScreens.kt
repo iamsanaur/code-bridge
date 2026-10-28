@@ -300,7 +300,7 @@ fun SessionScreen(nav: NavController, id: String) {
                 else -> null
             }
             if (s.mode.isChat) {
-                ChatTranscript(state.chat, revision, onRetry = lastPrompt?.let { p -> { action.run { api.prompt(id, p) } } }, modifier = Modifier.weight(1f))
+                ChatTranscript(state.chat, revision, onRetry = lastPrompt?.let { p -> { action.run { api.prompt(id, p) } } }, modifier = Modifier.weight(1f).fillMaxWidth(), working = status == dev.codebridge.core.SessionStatus.RUNNING)
                 Composer(
                     onSend = { text -> lastPrompt = text; action.run { api.prompt(id, text) } },
                     disabledReason = disabledReason ?: if (status == dev.codebridge.core.SessionStatus.RUNNING && s.mode == SessionMode.CLAUDE_CODE) "Claude Code is working…" else null,

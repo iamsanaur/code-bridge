@@ -3,7 +3,7 @@
  * link/QR secret, and the phone (also using only the secret) seeing and driving it.
  */
 import { existsSync } from 'node:fs';
-import { mkdtemp, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -139,5 +139,52 @@ describe('connecting with only the link', () => {
       body: { name: 'x' },
     });
     expect(noToken.status).toBe(401);
+
+    // Pick an existing folder on the computer: browse the home folder, add one, and nothing hidden or outside it.
+    const savedHome = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+    process.env.HOME = home;
+    process.env.USERPROFILE = home;
+    try {
+      await mkdir(path.join(home, 'existing-app', '.git'), { recursive: true });
+      await mkdir(path.join(home, '.ssh'), { recursive: true });
+      const top = await api<{
+        path: string;
+        canAdd: boolean;
+        folders: { name: string; path: string }[];
+      }>(ctx, 'GET', `/v1/devices/${deviceId}/browse`, { token });
+      expect(top.status).toBe(200);
+      expect(top.body.canAdd).toBe(false);
+      const names = top.body.folders.map((f) => f.name);
+      expect(names).toContain('existing-app');
+      expect(names).not.toContain('.ssh');
+      const target = top.body.folders.find((f) => f.name === 'existing-app')!;
+
+      const added = await api<{ workspace: { name: string; isGitRepo: boolean } }>(
+        ctx,
+        'POST',
+        `/v1/devices/${deviceId}/workspaces/add`,
+        { token, body: { path: target.path } },
+      );
+      expect(added.status).toBe(200);
+      expect(added.body.workspace).toMatchObject({ name: 'existing-app', isGitRepo: true });
+
+      for (const bad of [home, path.join(home, '.ssh'), '/etc', '/']) {
+        const r = await api(ctx, 'POST', `/v1/devices/${deviceId}/workspaces/add`, {
+          token,
+          body: { path: bad },
+        });
+        expect(r.status).toBeGreaterThanOrEqual(400);
+      }
+      const outside = await api(
+        ctx,
+        'GET',
+        `/v1/devices/${deviceId}/browse?path=${encodeURIComponent('/etc')}`,
+        { token },
+      );
+      expect(outside.status).toBeGreaterThanOrEqual(400);
+    } finally {
+      process.env.HOME = savedHome.HOME;
+      process.env.USERPROFILE = savedHome.USERPROFILE;
+    }
   }, 30_000);
 });

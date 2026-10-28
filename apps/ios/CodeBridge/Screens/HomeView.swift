@@ -175,6 +175,7 @@ struct DeviceView: View {
     @Environment(AppModel.self) private var app
     @State private var trigger = 0
     @State private var creating = false
+    @State private var picking = false
     /// Set right after a project is created, so the next screen is "start a session in it".
     @State private var createdWorkspaceId: String?
 
@@ -200,6 +201,14 @@ struct DeviceView: View {
                         .buttonStyle(.glassProminent)
                         .disabled(!d.online)
                         .accessibilityHint("Creates a new folder on \(d.name) and starts a project in it")
+                    }
+                    if d.capabilities?.canBrowseFolders == true {
+                        Button { picking = true } label: {
+                            Label("Add existing folder", systemImage: "folder").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(!d.online)
+                        .accessibilityHint("Choose a project folder that is already on \(d.name)")
                     }
                     if d.workspaces.isEmpty {
                         Text(d.capabilities?.canCreateWorkspaces == true
@@ -235,6 +244,16 @@ struct DeviceView: View {
                     }
                     .presentationDetents([.medium, .large])
                 }
+                .sheet(isPresented: $picking) {
+                    NavigationStack {
+                        FolderPickerView(device: d) { workspace in
+                            picking = false
+                            trigger += 1
+                            createdWorkspaceId = workspace.id
+                        }
+                    }
+                    .presentationDetents([.large])
+                }
                 .navigationDestination(isPresented: Binding(get: { createdWorkspaceId != nil }, set: { if !$0 { createdWorkspaceId = nil } })) {
                     if let id = createdWorkspaceId { NewSessionView(deviceId: d.id, workspaceId: id) }
                 }
@@ -246,6 +265,7 @@ struct DeviceView: View {
                         LabeledContent("Custom commands", value: c.allowCustomCommands ? "Allowed" : "Disabled")
                         LabeledContent("Interactive shell", value: c.allowInteractiveShell ? "Allowed" : "Disabled")
                         LabeledContent("New projects from this phone", value: c.canCreateWorkspaces == true ? "Allowed" : "Disabled")
+                        LabeledContent("Pick existing folders", value: c.canBrowseFolders == true ? "Allowed" : "Disabled")
                     } else {
                         Text("The Mac hasn’t connected yet.").font(.footnote)
                     }
@@ -436,6 +456,87 @@ struct NewProjectView: View {
         runner.run {
             let result = try await app.api.createWorkspace(deviceId: device.id, name: trimmed, gitInit: gitInit)
             onCreated(result.workspace)
+        }
+    }
+}
+
+/// Pick a folder that already exists on the computer. Only folders inside its home directory are shown (no hidden
+/// or system folders), and the computer checks the choice again before adding it.
+struct FolderPickerView: View {
+    let device: Device
+    let onAdded: (WorkspaceInfo) -> Void
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var listing: BrowseFoldersResult?
+    @State private var loadError: String?
+    @State private var loading = false
+    @State private var runner = ActionRunner()
+
+    var body: some View {
+        List {
+            if let listing {
+                Section {
+                    Label(listing.displayPath, systemImage: listing.isGitRepo ? "arrow.triangle.branch" : "folder")
+                        .font(.code)
+                } footer: {
+                    Text(listing.canAdd ? "Tap “Use this folder” to work in it, or open a folder inside it." : "Open the folder that holds your project.")
+                }
+                if let parent = listing.parentPath {
+                    Button { load(parent) } label: { Label("Up one folder", systemImage: "arrow.up.left") }
+                }
+                Section("Folders") {
+                    if listing.folders.isEmpty { Text("No folders here").foregroundStyle(.secondary) }
+                    ForEach(listing.folders) { f in
+                        Button { load(f.path) } label: {
+                            HStack {
+                                Label(f.name, systemImage: f.isGitRepo ? "arrow.triangle.branch" : "folder")
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                    if listing.truncated { Text("Only the first folders are shown.").font(.footnote).foregroundStyle(.secondary) }
+                }
+            } else if let loadError {
+                Section { InlineError(message: loadError); Button("Try again") { load(nil) } }
+            } else {
+                Section { ProgressView("Loading \(device.name)…") }
+            }
+            if listing != nil { Section { InlineError(message: runner.error) } }
+        }
+        .navigationTitle("Add folder")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Use this folder") { add() }
+                    .disabled(listing?.canAdd != true || runner.busy)
+            }
+        }
+        .overlay { if loading { ProgressView().controlSize(.large) } }
+        .task { if listing == nil { load(nil) } }
+    }
+
+    private func load(_ path: String?) {
+        loading = true
+        Task {
+            defer { loading = false }
+            do {
+                listing = try await app.api.browseFolders(deviceId: device.id, path: path)
+                loadError = nil
+            } catch {
+                if listing == nil { loadError = (error as? APIError)?.message ?? error.localizedDescription }
+                else { runner.error = (error as? APIError)?.message ?? error.localizedDescription }
+            }
+        }
+    }
+
+    private func add() {
+        guard let path = listing?.path else { return }
+        runner.run {
+            let result = try await app.api.addWorkspace(deviceId: device.id, path: path)
+            onAdded(result.workspace)
         }
     }
 }

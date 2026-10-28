@@ -93,6 +93,8 @@ public struct Capabilities: Codable, Equatable, Sendable {
     public var allowInteractiveShell: Bool
     /// The owner allows creating new project folders from the phone. Older agents don't send it.
     public var canCreateWorkspaces: Bool?
+    /// The owner allows picking existing folders from the phone. Older agents don't send it.
+    public var canBrowseFolders: Bool?
 }
 
 public struct WorkspaceInfo: Codable, Equatable, Identifiable, Sendable {
@@ -106,6 +108,29 @@ public struct CreateWorkspaceResult: Codable, Equatable, Sendable {
     public var workspace: WorkspaceInfo
     /// False if git was requested but could not be initialised on the computer.
     public var gitInit: Bool
+}
+
+public struct FolderEntry: Codable, Equatable, Identifiable, Sendable {
+    public var name: String
+    /// Absolute path on the computer, to pass back to browse or add.
+    public var path: String
+    public var isGitRepo: Bool
+    public var id: String { path }
+}
+
+public struct BrowseFoldersResult: Codable, Equatable, Sendable {
+    public var displayPath: String
+    public var path: String
+    public var parentPath: String?
+    /// False for the home folder itself: pick a project inside it.
+    public var canAdd: Bool
+    public var isGitRepo: Bool
+    public var folders: [FolderEntry]
+    public var truncated: Bool
+}
+
+public struct AddWorkspaceResult: Codable, Equatable, Sendable {
+    public var workspace: WorkspaceInfo
 }
 
 public struct PresetInfo: Codable, Equatable, Identifiable, Sendable {

@@ -57,6 +57,12 @@ export const configSchema = z.object({
        * reach any existing folder this way, so it does not widen what the phone can access.
        */
       allowWorkspaceCreation: z.boolean().default(true),
+      /**
+       * Lets the phone browse folders inside the home directory and add an existing one as a workspace. Hidden
+       * folders, system folders and the home directory itself are never offered or accepted. Turn this off to
+       * keep the workspace list editable only on this computer.
+       */
+      allowFolderBrowse: z.boolean().default(true),
       /** Where phone-created projects live. Defaults to ~/CodeBridge. */
       projectsRoot: z.string().optional(),
       presets: z.array(presetSchema).default(DEFAULT_PRESETS),
@@ -77,6 +83,7 @@ export const configSchema = z.object({
       allowInteractiveShell: false,
       allowClaudeCode: true,
       allowWorkspaceCreation: true,
+      allowFolderBrowse: true,
       presets: DEFAULT_PRESETS,
       envPassthrough: [],
       maxSessionMinutes: 240,

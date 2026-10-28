@@ -17,6 +17,7 @@ export type AuditAction =
   | 'pairing.deny'
   | 'pairing.complete'
   | 'workspace.create'
+  | 'workspace.add'
   | 'device.rename'
   | 'device.revoke'
   | 'device.rotate_secret'

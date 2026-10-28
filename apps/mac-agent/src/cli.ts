@@ -30,7 +30,7 @@ Usage:
   codebridge-agent workspace remove <id>
   codebridge-agent credentials set           Store an Anthropic API key in the system credential store (for the coding agent)
   codebridge-agent credentials status|clear
-  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowWorkspaceCreation> <true|false>
+  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowWorkspaceCreation|allowFolderBrowse> <true|false>
   codebridge-agent policy set projectsRoot <dir>   Where projects created from the phone live (default ~/CodeBridge)
   codebridge-agent service install|uninstall Start at login (LaunchAgent on macOS, scheduled task on Windows)
   codebridge-agent unpair                    Revoke this Mac and delete its credential
@@ -255,6 +255,7 @@ async function main(argv: string[]): Promise<number> {
           'allowInteractiveShell',
           'allowClaudeCode',
           'allowWorkspaceCreation',
+          'allowFolderBrowse',
         ] as const;
         if (
           !keys.includes(key as (typeof keys)[number]) ||
@@ -265,7 +266,12 @@ async function main(argv: string[]): Promise<number> {
           cfg.policy[key as (typeof keys)[number]] = value === 'true';
         });
         printPolicy(c);
-        if (value === 'true' && key !== 'allowClaudeCode' && key !== 'allowWorkspaceCreation') {
+        if (
+          value === 'true' &&
+          key !== 'allowClaudeCode' &&
+          key !== 'allowWorkspaceCreation' &&
+          key !== 'allowFolderBrowse'
+        ) {
           console.log(
             '\nWarning: this lets your paired phone run arbitrary programs in your workspaces as your user.',
           );
@@ -337,6 +343,7 @@ function printPolicy(c: AgentConfig) {
   console.log(`  allowInteractiveShell: ${c.policy.allowInteractiveShell}`);
   console.log(`  allowClaudeCode:       ${c.policy.allowClaudeCode}`);
   console.log(`  allowWorkspaceCreation: ${c.policy.allowWorkspaceCreation}`);
+  console.log(`  allowFolderBrowse:     ${c.policy.allowFolderBrowse}`);
   console.log(`  projectsRoot:          ${projectsRoot(c.policy)}`);
   console.log(`  presets:               ${c.policy.presets.map((p) => p.id).join(', ')}`);
 }

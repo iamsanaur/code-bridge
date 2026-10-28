@@ -227,6 +227,23 @@ public actor APIClient {
         return try await request("POST", "/v1/devices/\(deviceId)/workspaces", body: Body(name: name, gitInit: gitInit), headers: idem())
     }
 
+    /// The folders inside one folder of the computer's home directory (the home folder when `path` is nil).
+    public func browseFolders(deviceId: String, path: String?) async throws -> BrowseFoldersResult {
+        var query = ""
+        if let path {
+            var allowed = CharacterSet.urlQueryAllowed
+            allowed.remove(charactersIn: "&=+#?")
+            query = "?path=" + (path.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")
+        }
+        return try await request("GET", "/v1/devices/\(deviceId)/browse\(query)")
+    }
+
+    /// Adds an existing folder on the computer as a project. The computer re-checks the path and refuses hidden,
+    /// system and out-of-home folders.
+    public func addWorkspace(deviceId: String, path: String) async throws -> AddWorkspaceResult {
+        try await request("POST", "/v1/devices/\(deviceId)/workspaces/add", body: ["path": path], headers: idem())
+    }
+
     public func signal(_ id: String, terminate: Bool) async throws {
         try await send("POST", "/v1/sessions/\(id)/signal", body: ["signal": terminate ? "terminate" : "interrupt"], idempotent: true)
     }

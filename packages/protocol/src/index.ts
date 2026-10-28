@@ -221,8 +221,23 @@ export const createWorkspaceCommandSchema = z.object({
   gitInit: z.boolean().default(true),
 });
 
+/** Lists the folders inside a folder of the owner's home directory, so the phone can pick an existing project. */
+export const browseFoldersCommandSchema = z.object({
+  op: z.literal('workspace.browse'),
+  /** Absolute path returned by an earlier browse; omitted for the home directory. */
+  path: z.string().min(1).max(2048).optional(),
+});
+
+/** Registers an existing folder (one the owner can browse to) as a workspace. */
+export const addWorkspaceCommandSchema = z.object({
+  op: z.literal('workspace.add'),
+  path: z.string().min(1).max(2048),
+});
+
 export const agentCommandSchema = z.discriminatedUnion('op', [
   createWorkspaceCommandSchema,
+  browseFoldersCommandSchema,
+  addWorkspaceCommandSchema,
   startSessionSchema,
   inputCommandSchema,
   resizeCommandSchema,
@@ -269,6 +284,30 @@ export const createWorkspaceResultSchema = z.object({
 });
 export type CreateWorkspaceResult = z.infer<typeof createWorkspaceResultSchema>;
 
+export const folderEntrySchema = z.object({
+  name: z.string().max(256),
+  /** Absolute path, to pass back to browse or add. */
+  path: z.string().max(2048),
+  isGitRepo: z.boolean(),
+});
+
+export const browseFoldersResultSchema = z.object({
+  /** The folder being listed, with the home directory abbreviated to `~`. */
+  displayPath: z.string().max(2048),
+  path: z.string().max(2048),
+  /** The folder above this one, or null at the top (the home directory). */
+  parentPath: z.string().max(2048).nullable(),
+  /** Whether this folder itself can be added as a workspace (false for the home directory). */
+  canAdd: z.boolean(),
+  isGitRepo: z.boolean(),
+  folders: z.array(folderEntrySchema).max(500),
+  truncated: z.boolean(),
+});
+export type BrowseFoldersResult = z.infer<typeof browseFoldersResultSchema>;
+
+export const addWorkspaceResultSchema = z.object({ workspace: workspaceInfoSchema });
+export type AddWorkspaceResult = z.infer<typeof addWorkspaceResultSchema>;
+
 export const presetInfoSchema = z.object({
   id: idSchema,
   label: z.string().max(128),
@@ -285,6 +324,8 @@ export const agentCapabilitiesSchema = z.object({
   allowInteractiveShell: z.boolean(),
   /** The owner allows creating new project folders from the phone. */
   canCreateWorkspaces: z.boolean().default(false),
+  /** The owner allows picking existing folders from the phone. */
+  canBrowseFolders: z.boolean().default(false),
 });
 export type AgentCapabilities = z.infer<typeof agentCapabilitiesSchema>;
 
