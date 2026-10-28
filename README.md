@@ -13,10 +13,10 @@ No account. No server to rent. Scan a QR code and you're connected.
 
 <br />
 
-<img src="docs/screenshots/ios-welcome.png" width="23%" alt="iOS welcome screen" />
-<img src="docs/screenshots/ios-home.png" width="23%" alt="iOS home with a computer online" />
-<img src="docs/screenshots/android-welcome-dark.png" width="23%" alt="Android welcome screen, dark" />
-<img src="docs/screenshots/android-home-dark.png" width="23%" alt="Android home with a computer online, dark" />
+<img src="docs/screenshots/ios-agents.png" width="23%" alt="iOS Agents tab showing which Claude Code sessions need you" />
+<img src="docs/screenshots/ios-approve.png" width="23%" alt="iOS approval card with the exact command" />
+<img src="docs/screenshots/ios-chat.png" width="23%" alt="iOS chat with a file edit shown as red and green lines" />
+<img src="docs/screenshots/android-agents-dark.png" width="23%" alt="Android Agents tab, dark" />
 
 </div>
 
@@ -24,11 +24,15 @@ No account. No server to rent. Scan a QR code and you're connected.
 
 ## What it is
 
-CodeBridge puts a terminal, git and **Claude Code** for your own computer in your pocket. Start a session on your Mac or Windows PC, watch the output live, approve risky commands from your phone, and walk away.
+CodeBridge puts **Claude Code**, a terminal and git for your own computer in your pocket. Start a session on your Mac or Windows PC, watch it work, approve the commands it asks about, and walk away.
 
-- **Your code never leaves your computer.** Commands run on your machine, inside folders you approved on that machine. Optional cloud sessions run in an isolated Anthropic sandbox and are always labelled as such.
-- **You run your own relay.** There is nothing for anyone to host for you and no account to create. The QR code your relay shows is the whole sign-in.
-- **Run several agents.** The Agents tab shows every session, which need you, and lets you approve, cancel or start more.
+- **Several agents at once.** The **Agents** tab shows every Claude Code session across your computers, which ones need you, and lets you cancel, stop or start more. Subagents Claude starts show as their own cards.
+- **Approve from your phone.** Anything Claude Code is not allowed to run on its own appears as an **Approve / Reject** card with the exact command. Nothing runs until you tap Approve.
+- **A real Claude Code chat.** Replies, tool calls, file edits as red and green lines, and screenshots from your project all show in the conversation.
+- **Pick up where you left off.** **Continue** lists the Claude Code conversations already saved on your computer, including ones you started in a terminal, and resumes one from the phone, in place or as a copy.
+- **Any project, even on an external drive.** Add an existing folder, start a new one, or choose where new projects go.
+- **Your code stays on your computer.** Commands run on your machine, inside folders you approved there. Your phone only receives what you ask to see: output, diffs and images, sent through your own relay. Optional cloud sessions run in an isolated Anthropic sandbox and are always labelled.
+- **No account, no server to rent.** You run your own relay, and the QR code it shows is the whole sign-in.
 - **Your Claude plan works.** Claude Code runs on your computer with its own login, so sessions use your own Claude subscription. CodeBridge never sees that login.
 
 ## Get started
@@ -37,7 +41,7 @@ You need three things: a relay (the small program that links phone and computer)
 
 ### 1. Start your relay and connect your computer
 
-On the computer you want to control (Node.js 22+):
+On the computer you want to control (Node.js 22+, and Claude Code installed if you want Claude sessions):
 
 ```bash
 npx -y codebridge-relay start --tunnel cloudflare --with-agent
@@ -49,7 +53,12 @@ This starts the relay, opens a free secure public address through Cloudflare (in
 npx -y codebridge-relay fly --with-agent
 ```
 
-The app has a **Set up a relay** screen with both commands, a Copy button and a _Send to my computer_ button.
+The app has a **Set up a relay** screen with both commands, a Copy button and a _Send to my computer_ button. To keep the agent running after you close the terminal, install it and start it at login:
+
+```bash
+npm install -g codebridge-agent
+codebridge-agent service install        # LaunchAgent on macOS, scheduled task on Windows
+```
 
 ### 2. Install the app and scan
 
@@ -66,13 +75,19 @@ The app has a **Set up a relay** screen with both commands, a Copy button and a 
 
 Open the app, tap **Scan QR code**, scan the code from step 1, confirm the relay, done. Your computer shows up as **Online**.
 
-### 3. Run a session
+### 3. Work from your phone
 
-Choose your computer, then tap **Add existing folder** to browse your computer's home folder and pick a project that is already there, or tap **New project** to start a fresh one (a new folder on your computer, optionally with `git init`), then start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
+| To do this                           | Do this                                                                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Start Claude Code on a project       | Home → your computer → a project → **New session** → _Claude Code_                                                          |
+| Pick up an earlier conversation      | On a project, tap **Continue**, choose a conversation, then _Continue_ or _Continue as a copy_                              |
+| Work on a folder that already exists | Your computer → **Add existing folder**, browse and choose **Use this folder**                                              |
+| Start a brand-new project            | Your computer → **New project**, type a name (optionally with `git init`). **Change default folder** picks where it goes    |
+| See everything that is running       | The **Agents** tab: _Needs you_, _Working_, _Idle_. Swipe or tap to cancel a turn, stop a session, or start a **New agent** |
+| Approve a command Claude asked about | Tap **Approve** or **Reject** on the card. No answer for 10 minutes counts as Reject                                        |
+| Add another computer                 | Home → **Add a computer**                                                                                                   |
 
-**Continue** (on a project) lists the Claude Code conversations already saved on your computer, including ones you started in a terminal, and lets you pick one up from your phone, in place or as a copy that leaves the original untouched.
-
-The **Agents** tab shows every Claude Code session across your computers at a glance: which ones need your approval, which are working, and which are idle. Cancel a running turn without opening it, start another agent in any project, and see the subagents Claude starts for a task as their own cards, with the steps they took.
+Claude Code can edit files in the project on its own, and asks you about anything else. Terminal and git sessions use presets; custom commands and interactive shells are off until you turn them on (see [Settings on the computer](#settings-on-the-computer)).
 
 ## Screenshots
 
@@ -92,11 +107,11 @@ The **Agents** tab shows every Claude Code session across your computers at a gl
   </tr>
   <tr>
     <td><img src="docs/screenshots/android-setup-dark.png" width="260" alt="Android set up a relay" /></td>
-    <td><img src="docs/screenshots/android-home-light.png" width="260" alt="Android home, light" /></td>
-    <td><img src="docs/screenshots/android-settings-dark.png" width="260" alt="Android settings, dark" /></td>
+    <td><img src="docs/screenshots/android-home-dark.png" width="260" alt="Android home" /></td>
+    <td><img src="docs/screenshots/android-settings-dark.png" width="260" alt="Android settings" /></td>
   </tr>
   <tr>
-    <td colspan="3" align="center"><sub><b>Android</b>: Jetpack Compose with a glass control layer, in light and dark</sub></td>
+    <td colspan="3" align="center"><sub><b>Android</b>: Jetpack Compose with a glass control layer</sub></td>
   </tr>
 </table>
 
@@ -119,19 +134,20 @@ The **Agents** tab shows every Claude Code session across your computers at a gl
     <td align="center"><img src="docs/screenshots/ios-image.png" width="260" alt="iOS chat showing a screenshot from the project" /></td>
   </tr>
   <tr>
-    <td colspan="3" align="center"><sub>The <b>Agents</b> tab shows every Claude Code session across your computers and which ones need you. Commands Claude Code is not allowed to run on its own appear as an approval card. Subagents get their own card with the steps they took, and screenshots from your project show right in the chat.</sub></td>
+    <td colspan="3" align="center"><sub>The <b>Agents</b> tab shows every Claude Code session and which ones need you. Commands Claude Code is not allowed to run on its own appear as an approval card. Subagents get their own card with the steps they took, and screenshots from your project show right in the chat.</sub></td>
   </tr>
 </table>
 
-### Folders
+### Folders and conversations
 
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/ios-add-folder.png" width="260" alt="iOS folder picker" /></td>
-    <td align="center"><img src="docs/screenshots/android-add-folder-dark.png" width="260" alt="Android folder picker, dark" /></td>
+    <td align="center"><img src="docs/screenshots/android-add-folder-dark.png" width="260" alt="Android folder picker" /></td>
+    <td align="center"><img src="docs/screenshots/android-continue-dark.png" width="260" alt="Android list of saved Claude Code conversations to continue" /></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><sub><b>Add existing folder</b> and <b>Change default folder</b> browse your computer's home folder. Hidden and system folders are never offered.</sub></td>
+    <td colspan="3" align="center"><sub><b>Add existing folder</b> and <b>Change default folder</b> browse your computer; hidden and system folders are never offered. <b>Continue</b> lists the Claude Code conversations saved for a project.</sub></td>
   </tr>
 </table>
 
@@ -149,21 +165,58 @@ The **Agents** tab shows every Claude Code session across your computers at a gl
 1. The **agent** on your computer connects **outbound** to your relay. No ports are opened on your computer.
 2. The **relay** forwards messages between your phone and your agent. It is one small process with an embedded database, run by you.
 3. The **phone** joins by scanning the relay's QR code, which carries a random secret. That secret is stored in the iOS Keychain or Android Keystore and silently reconnects after a restart.
+4. **Claude Code** runs on the computer through the `claude` CLI. When it needs permission, the agent asks your phone and passes the answer back; each permission is one command, never "always allow".
 
 Every command is checked again on the computer against the policy you set there, so a compromised relay or phone cannot widen what is allowed.
 
 ## Safety
 
-|                  |                                                                                                                                                                                   |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Folders**      | Only registered folders are reachable. From the phone you can pick one inside your home folder (never hidden or system folders); you can switch that off. Paths are symlink-safe. |
-| **Commands**     | Phone commands are limited to presets unless you turn on custom commands. Risky programs need approval on the phone, and some (`sudo`, `diskpart`, `reg`, …) never run.           |
-| **Shells**       | Interactive shells are off until you enable them on the computer.                                                                                                                 |
-| **Secrets**      | Stored in the OS credential store (Keychain, Credential Manager, Android Keystore). Child processes get a minimal environment.                                                    |
-| **Relay link**   | The QR code is a password: it gives full control of every computer on that relay. Don't share a screenshot of it.                                                                 |
-| **Confirmation** | Opening a connect link asks you to confirm the relay before anything is sent to it.                                                                                               |
+|                   |                                                                                                                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Folders**       | Only registered folders are reachable. From the phone you can pick one inside your home folder, or inside a place you added on the computer; never hidden or system folders. Paths are symlink-safe.            |
+| **Claude Code**   | Edits inside the project go through; anything else needs your **Approve** on the phone. `sudo`, `dd`, `shutdown` and the like are refused without asking, and `rm`, `curl` and `git push` are marked high risk. |
+| **Commands**      | Terminal commands from the phone are limited to presets unless you turn on custom commands. Some programs (`sudo`, `diskpart`, `reg`, …) never run.                                                             |
+| **Shells**        | Interactive shells are off until you enable them on the computer.                                                                                                                                               |
+| **Images**        | Only png, jpg, gif and webp files inside the project, up to 6 MB, are sent to the phone. SVG is never served, and secret-looking files are refused.                                                             |
+| **Conversations** | Only the saved conversations for that exact project can be listed or resumed. The phone gets text only, with secrets redacted.                                                                                  |
+| **Secrets**       | Stored in the OS credential store (Keychain, Credential Manager, Android Keystore). Child processes get a minimal environment.                                                                                  |
+| **Relay link**    | The QR code is a password: it gives full control of every computer on that relay. Don't share a screenshot of it.                                                                                               |
+| **Confirmation**  | Opening a connect link asks you to confirm the relay before anything is sent to it.                                                                                                                             |
 
 Read [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
+
+### Settings on the computer
+
+The owner decides what the phone may do, on the computer. Nothing here can be changed from the phone.
+
+```bash
+codebridge-agent status                                   # show pairing, projects and every setting below
+codebridge-agent policy set <name> <true|false>           # change a switch
+codebridge-agent policy set projectsRoot <dir>            # where new projects are created
+codebridge-agent policy add-root <dir>                    # let the phone browse another place, such as an external drive
+codebridge-agent policy remove-root <dir>
+codebridge-agent workspace add <dir>                      # register a project folder from the computer
+```
+
+| Switch                     | Default | What it controls                                                    |
+| -------------------------- | ------- | ------------------------------------------------------------------- |
+| `allowClaudeCode`          | on      | Claude Code sessions, and listing or continuing saved conversations |
+| `allowClaudeCodeEdits`     | on      | Claude Code changes files in the project without asking             |
+| `allowClaudeCodeApprovals` | on      | Ask on the phone about anything else, instead of declining it       |
+| `allowWorkspaceCreation`   | on      | **New project** and choosing the default project folder             |
+| `allowFolderBrowse`        | on      | **Add existing folder** and browsing your computer from the phone   |
+| `allowCustomCommands`      | off     | Custom terminal commands, beyond the presets                        |
+| `allowInteractiveShell`    | off     | A login shell, which is equivalent to full shell access             |
+
+#### Projects on an external drive
+
+By default the phone browses your home folder. To reach projects on another drive, add its location on the computer:
+
+```bash
+codebridge-agent policy add-root /Volumes/SSD/Code      # macOS; on Windows: D:\Code
+```
+
+The drive then appears at the top of **Add existing folder**. The same rules apply inside it, and the drive itself can't be added as a project, only a folder inside it. An unplugged drive is skipped.
 
 ## Platforms
 
@@ -173,6 +226,8 @@ Read [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
 | **Relay**       | Any computer with Node.js 22+, Docker, or Fly.io | `codebridge-relay`, or the container image. Embedded Postgres, no database server.                                       |
 | **iOS app**     | iOS 26+                                          | SwiftUI, Liquid Glass, VisionKit QR scanning.                                                                            |
 | **Android app** | Android 9+ (API 28)                              | Jetpack Compose, Keystore-encrypted secrets, Google code scanner.                                                        |
+
+Update the agent and relay together (`npm install -g codebridge-agent@latest codebridge-relay@latest`): newer app features, such as subagents and images, need both.
 
 ### iOS installation
 
@@ -205,17 +260,6 @@ packages/
 docs/           ARCHITECTURE, SECURITY, API, DEVELOPMENT, DEPLOYMENT, PLAN
 infra/          relay.Dockerfile, docker-compose.yml
 ```
-
-### Projects on an external drive
-
-By default the phone browses your home folder. To reach projects on another drive, add its location **on the computer** (the phone can't change this):
-
-```bash
-codebridge-agent policy add-root /Volumes/SSD/Code      # macOS; on Windows: D:\Code
-codebridge-agent policy remove-root /Volumes/SSD/Code
-```
-
-The drive then appears at the top of **Add existing folder**. Hidden and system folders are still never offered.
 
 ### Run from source
 
