@@ -210,7 +210,7 @@ export class SessionManager {
         'Choosing the default project folder from the phone is turned off on this computer (it needs allowWorkspaceCreation and allowFolderBrowse).',
       );
     try {
-      const dir = await validateProjectsRoot(c.path);
+      const dir = await validateProjectsRoot(c.path, config.policy.browseRoots);
       await this.deps.setProjectsRoot(dir);
       this.deps.log.info('default project folder changed from the phone', {
         folder: abbreviateHome(dir),
@@ -225,7 +225,7 @@ export class SessionManager {
   private async browse(c: Extract<AgentCommand, { op: 'workspace.browse' }>) {
     this.requireFolderBrowse();
     try {
-      return await browseFolders(c.path);
+      return await browseFolders(c.path, this.requireFolderBrowse().policy.browseRoots);
     } catch (err) {
       if (err instanceof PathError) throw new SessionError('path_denied', err.message);
       throw err;
@@ -235,7 +235,11 @@ export class SessionManager {
   private async addExisting(c: Extract<AgentCommand, { op: 'workspace.add' }>) {
     const config = this.requireFolderBrowse();
     try {
-      const { ws, added } = await prepareExistingWorkspace(c.path, config.workspaces);
+      const { ws, added } = await prepareExistingWorkspace(
+        c.path,
+        config.workspaces,
+        config.policy.browseRoots,
+      );
       if (added) {
         if (config.workspaces.length >= MAX_WORKSPACES)
           throw new SessionError('limit', `This computer already has ${MAX_WORKSPACES} workspaces`);

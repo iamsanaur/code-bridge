@@ -204,6 +204,17 @@ docs/           ARCHITECTURE, SECURITY, API, DEVELOPMENT, DEPLOYMENT, PLAN
 infra/          relay.Dockerfile, docker-compose.yml
 ```
 
+### Projects on an external drive
+
+By default the phone browses your home folder. To reach projects on another drive, add its location **on the computer** (the phone can't change this):
+
+```bash
+codebridge-agent policy add-root /Volumes/SSD/Code      # macOS; on Windows: D:\Code
+codebridge-agent policy remove-root /Volumes/SSD/Code
+```
+
+The drive then appears at the top of **Add existing folder**. Hidden and system folders are still never offered.
+
 ### Run from source
 
 ```bash

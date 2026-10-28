@@ -114,3 +114,12 @@ When Claude Code reads or saves a screenshot, the app fetches it from the comput
 - **Only inside the project.** The path must be relative to the workspace or absolute inside it; it is resolved through symlinks and re-checked on the computer, so a link pointing outside is refused. Secret-looking names (`.env*`, keys) are refused.
 - **Regular files up to 6 MB.** The relay collects the file from the agent in 120 KB pieces (one WebSocket frame is limited to 256 KB) and hands the phone the finished image. The relay never stores it.
 - Pictures that Claude Code reads are no longer sent to the phone as base64 text; the tool result just says `[image]`.
+
+## Browsing an external drive or another location
+
+By default the phone can only browse your home directory. To work on projects somewhere else, such as an external SSD, the **owner** adds that location on the computer: `codebridge-agent policy add-root /Volumes/SSD/Code`. The phone cannot add or change these; there is no command for it.
+
+- **Same checks as `workspace add`.** The folder must exist, be a directory, and not be a system directory (`/`, `/Volumes` itself, `C:\Windows`, …). It is stored as its real path.
+- **Same rules inside.** Hidden folders (`.Trashes`, `.Spotlight-V100`, `.git` contents), app-data folders and `node_modules` are never listed, symlinks are skipped, and the agent resolves and re-checks every path, so a link out of the drive is refused. The location itself cannot be added as a project, only a folder inside it.
+- **Unplugged drives are harmless.** A root that is not mounted is skipped, and nothing under it can be opened.
+- At most 10 roots. `codebridge-agent policy remove-root <dir>` takes one away; `codebridge-agent status` lists them. Turning `allowFolderBrowse` off still disables all phone browsing.

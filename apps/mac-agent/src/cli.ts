@@ -32,6 +32,8 @@ Usage:
   codebridge-agent credentials set           Store an Anthropic API key in the system credential store (for the coding agent)
   codebridge-agent credentials status|clear
   codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowClaudeCodeEdits|allowClaudeCodeApprovals|allowWorkspaceCreation|allowFolderBrowse> <true|false>
+  codebridge-agent policy add-root <dir>      Let the phone browse another place too, such as an external drive (/Volumes/SSD)
+  codebridge-agent policy remove-root <dir>
   codebridge-agent policy set projectsRoot <dir>   Where projects created from the phone live (default ~/CodeBridge)
   codebridge-agent service install|uninstall Start at login (LaunchAgent on macOS, scheduled task on Windows)
   codebridge-agent unpair                    Revoke this Mac and delete its credential
@@ -242,6 +244,27 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case 'policy': {
+      if (sub === 'add-root' || sub === 'remove-root') {
+        const [dir] = rest;
+        if (!dir) return usage();
+        if (sub === 'add-root') {
+          // The same checks as `workspace add`: it must exist, be a folder, and not be a system directory.
+          const ws = await prepareWorkspace(dir);
+          const c = await store.update((cfg) => {
+            if (!cfg.policy.browseRoots.includes(ws.path)) cfg.policy.browseRoots.push(ws.path);
+          });
+          printPolicy(c);
+          console.log(`\nThe phone can now browse ${ws.path}. Restart is not needed.`);
+        } else {
+          const abs = path.resolve(dir.replace(/^~(?=$|[\\/])/, os.homedir()));
+          printPolicy(
+            await store.update((cfg) => {
+              cfg.policy.browseRoots = cfg.policy.browseRoots.filter((r) => r !== abs);
+            }),
+          );
+        }
+        return 0;
+      }
       if (sub === 'set') {
         const [key, value] = rest;
         if (key === 'projectsRoot') {
@@ -354,6 +377,9 @@ function printPolicy(c: AgentConfig) {
   console.log(`  allowWorkspaceCreation: ${c.policy.allowWorkspaceCreation}`);
   console.log(`  allowFolderBrowse:     ${c.policy.allowFolderBrowse}`);
   console.log(`  projectsRoot:          ${projectsRoot(c.policy)}`);
+  console.log(
+    `  browseRoots:           ${c.policy.browseRoots.join(', ') || '(home folder only)'}`,
+  );
   console.log(`  presets:               ${c.policy.presets.map((p) => p.id).join(', ')}`);
 }
 

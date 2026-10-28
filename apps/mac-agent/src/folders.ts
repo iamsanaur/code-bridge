@@ -23,9 +23,9 @@ async function realHome(): Promise<string> {
   return realpath(os.homedir()).catch(() => os.homedir());
 }
 
-/** Segments of `real` below `home`, or null when `real` is not inside it. */
-function below(home: string, real: string): string[] | null {
-  const rel = path.relative(home, real);
+/** Segments of `real` below `base`, or null when `real` is not inside it. */
+function below(base: string, real: string): string[] | null {
+  const rel = path.relative(base, real);
   if (rel === '') return [];
   if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
   return rel.split(path.sep);
@@ -34,31 +34,54 @@ function below(home: string, real: string): string[] | null {
 const hiddenOrAppData = (segments: string[]) =>
   segments.some((s) => s.startsWith('.') || NOT_PROJECT_FOLDERS.has(s.toLowerCase()));
 
-/**
- * Resolves a folder the phone asked about. It must exist, be a real directory, sit inside the home directory
- * and not be hidden (`.ssh`, `.config`, …) or an app-data folder. `path` always comes from a previous listing,
- * but is never trusted: it is resolved through symlinks and re-checked here.
- */
-async function resolveBrowsable(requested?: string): Promise<{ real: string; segments: string[] }> {
+/** The folders the phone may browse: the home directory, plus any the owner added with `policy add-root`. */
+async function browseBases(roots: string[]): Promise<{ home: string; extra: string[] }> {
   const home = await realHome();
+  const extra: string[] = [];
+  for (const r of roots) {
+    const real = await realpath(r).catch(() => null);
+    // A root that is gone (an unplugged drive) is skipped, not an error.
+    if (real && !same(real, home) && !extra.some((e) => same(e, real))) extra.push(real);
+  }
+  return { home, extra };
+}
+
+/**
+ * Resolves a folder the phone asked about. It must exist, be a real directory, sit inside the home directory or one of
+ * the owner's extra roots (an external drive, say) and not be hidden (`.ssh`, `.config`, …) or an app-data folder.
+ * `path` always comes from a previous listing, but is never trusted: it is resolved through symlinks and re-checked.
+ */
+async function resolveBrowsable(
+  requested: string | undefined,
+  roots: string[],
+): Promise<{ real: string; segments: string[]; isHome: boolean }> {
+  const { home, extra } = await browseBases(roots);
   let real: string;
   try {
     real = await realpath(requested ? path.resolve(requested) : home);
   } catch {
     throw new PathError('That folder no longer exists');
   }
-  const segments = below(home, real);
-  if (!segments || hiddenOrAppData(segments))
+  // The most specific base wins, so a root inside home is judged as a root.
+  let best: { segments: string[]; isHome: boolean } | null = null;
+  for (const [base, isHome] of [[home, true] as const, ...extra.map((e) => [e, false] as const)]) {
+    const segments = below(base, real);
+    if (segments && (!best || segments.length < best.segments.length)) best = { segments, isHome };
+  }
+  if (!best || hiddenOrAppData(best.segments))
     throw new PathError('That folder cannot be opened from the phone');
   if (!(await stat(real)).isDirectory()) throw new PathError('Not a folder');
-  return { real, segments };
+  return { real, ...best };
 }
 
 const isGit = (dir: string) => existsSync(path.join(dir, '.git'));
 
 /** The visible sub-folders of one folder, for the phone's folder picker. Files are never listed. */
-export async function browseFolders(requested?: string): Promise<BrowseFoldersResult> {
-  const { real, segments } = await resolveBrowsable(requested);
+export async function browseFolders(
+  requested?: string,
+  roots: string[] = [],
+): Promise<BrowseFoldersResult> {
+  const { real, segments, isHome } = await resolveBrowsable(requested, roots);
   let dirents;
   try {
     dirents = await readdir(real, { withFileTypes: true });
@@ -68,7 +91,7 @@ export async function browseFolders(requested?: string): Promise<BrowseFoldersRe
     );
   }
   const all = dirents
-    // Symlinks are skipped: a link could lead out of the home directory.
+    // Symlinks are skipped: a link could lead out of the browsable folders.
     .filter((d) => d.isDirectory() && !d.isSymbolicLink())
     .filter((d) => !d.name.startsWith('.') && !NOT_PROJECT_FOLDERS.has(d.name.toLowerCase()))
     .map((d) => d.name)
@@ -77,12 +100,28 @@ export async function browseFolders(requested?: string): Promise<BrowseFoldersRe
     const p = path.join(real, name);
     return { name, path: p, isGitRepo: isGit(p) };
   });
-  const atHome = segments.length === 0;
+  const atTop = isHome && segments.length === 0;
+  if (atTop) {
+    // The owner's extra locations (an external drive) appear next to the home folders.
+    const { extra } = await browseBases(roots);
+    for (const root of extra)
+      folders.push({
+        name: `${path.basename(root) || root} (${root})`,
+        path: root,
+        isGitRepo: isGit(root),
+      });
+  }
+  const home = await realHome();
   return {
-    displayPath: atHome ? '~' : `~${path.sep}${segments.join(path.sep)}`,
+    displayPath: isHome
+      ? segments.length === 0
+        ? '~'
+        : `~${path.sep}${segments.join(path.sep)}`
+      : real,
     path: real,
-    parentPath: atHome ? null : path.dirname(real),
-    canAdd: !atHome,
+    // Up from the top of an external location goes to the home folder, where it was listed.
+    parentPath: atTop ? null : segments.length === 0 ? home : path.dirname(real),
+    canAdd: segments.length > 0,
     isGitRepo: isGit(real),
     folders,
     truncated: all.length > MAX_FOLDERS,
@@ -96,10 +135,11 @@ export async function browseFolders(requested?: string): Promise<BrowseFoldersRe
 export async function prepareExistingWorkspace(
   requested: string,
   existing: Workspace[],
+  roots: string[] = [],
 ): Promise<{ ws: Workspace; added: boolean }> {
-  const { real, segments } = await resolveBrowsable(requested);
+  const { real, segments } = await resolveBrowsable(requested, roots);
   if (segments.length === 0)
-    throw new PathError('Pick a project folder, not your whole home folder');
+    throw new PathError('Pick a project folder, not a whole drive or your home folder');
   const found = existing.find((w) => same(w.path, real));
   if (found) return { ws: found, added: false };
   return { ws: await prepareWorkspace(real), added: true };
@@ -109,9 +149,12 @@ export async function prepareExistingWorkspace(
  * Validates a folder the phone chose as the default place for new projects: it must exist and follow the browsing
  * rules (inside the home directory, nothing hidden or app-data), and may not be the home directory itself.
  */
-export async function validateProjectsRoot(requested: string): Promise<string> {
-  const { real, segments } = await resolveBrowsable(requested);
+export async function validateProjectsRoot(
+  requested: string,
+  roots: string[] = [],
+): Promise<string> {
+  const { real, segments } = await resolveBrowsable(requested, roots);
   if (segments.length === 0)
-    throw new PathError('Pick a folder inside your home folder, such as Projects');
+    throw new PathError('Pick a folder inside your home folder or drive, such as Projects');
   return real;
 }

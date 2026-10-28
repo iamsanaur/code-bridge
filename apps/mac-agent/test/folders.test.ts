@@ -84,3 +84,50 @@ describe('validateProjectsRoot', () => {
     }
   });
 });
+
+describe('extra browse roots (an external drive)', () => {
+  let drive: string;
+  beforeAll(() => {
+    drive = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'cb-drive-')));
+    for (const d of ['Code/webapp/.git', 'Code/notes', '.Trashes', 'Photos'])
+      mkdirSync(path.join(drive, d), { recursive: true });
+    symlinkSync('/', path.join(drive, 'Code', 'out'));
+  });
+  afterAll(() => rmSync(drive, { recursive: true, force: true }));
+
+  it('shows the drive next to the home folders and lets you open it', async () => {
+    const top = await browseFolders(undefined, [drive]);
+    expect(top.folders.some((f) => f.path === drive)).toBe(true);
+    const root = await browseFolders(drive, [drive]);
+    expect(root.folders.map((f) => f.name)).toEqual(['Code', 'Photos']);
+    expect(root.canAdd).toBe(false);
+    expect(root.parentPath).toBe(home);
+    const code = await browseFolders(path.join(drive, 'Code'), [drive]);
+    expect(code.folders.map((f) => f.name)).toEqual(['notes', 'webapp']);
+    expect(code.canAdd).toBe(true);
+    expect(code.parentPath).toBe(drive);
+  });
+
+  it('adds a project from the drive and refuses the whole drive, hidden folders and links out', async () => {
+    const ok = await prepareExistingWorkspace(path.join(drive, 'Code', 'webapp'), [], [drive]);
+    expect(ok.added).toBe(true);
+    for (const p of [drive, path.join(drive, '.Trashes'), path.join(drive, 'Code', 'out')]) {
+      await expect(prepareExistingWorkspace(p, [], [drive])).rejects.toThrow();
+    }
+  });
+
+  it('refuses the drive when it is not listed, and a vanished root is skipped', async () => {
+    await expect(browseFolders(path.join(drive, 'Code'), [])).rejects.toMatchObject({
+      code: 'path_denied',
+    });
+    const top = await browseFolders(undefined, ['/definitely/not/mounted']);
+    expect(top.folders.some((f) => f.name.includes('not/mounted'))).toBe(false);
+  });
+
+  it('can use a folder on the drive as the default project folder', async () => {
+    expect(await validateProjectsRoot(path.join(drive, 'Code'), [drive])).toBe(
+      path.join(drive, 'Code'),
+    );
+    await expect(validateProjectsRoot(drive, [drive])).rejects.toThrow();
+  });
+});

@@ -75,6 +75,12 @@ export const configSchema = z.object({
        * keep the workspace list editable only on this computer.
        */
       allowFolderBrowse: z.boolean().default(true),
+      /**
+       * Extra places the phone may browse besides the home directory, for example an external drive
+       * (`/Volumes/SSD/Code`). Only the owner can add them, on this computer: `codebridge-agent policy add-root <dir>`.
+       * The same rules apply inside them (nothing hidden, no symlinks out), and system folders are refused.
+       */
+      browseRoots: z.array(z.string().max(1024)).max(10).default([]),
       /** Where phone-created projects live. Defaults to ~/CodeBridge. */
       projectsRoot: z.string().optional(),
       presets: z.array(presetSchema).default(DEFAULT_PRESETS),
@@ -98,6 +104,7 @@ export const configSchema = z.object({
       allowClaudeCodeApprovals: true,
       allowWorkspaceCreation: true,
       allowFolderBrowse: true,
+      browseRoots: [],
       presets: DEFAULT_PRESETS,
       envPassthrough: [],
       maxSessionMinutes: 240,
