@@ -1,6 +1,6 @@
 {
   "name": "codebridge-agent",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "type": "module",
   "bin": {
     "codebridge-agent": "dist/cli.js"

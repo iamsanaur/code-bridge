@@ -274,6 +274,10 @@ class ApiClient(
         }
     }
 
+    /** The Claude Code conversations saved on the computer for one project, newest first. */
+    suspend fun savedConversations(deviceId: String, workspaceId: String): List<SavedConversation> =
+        request("GET", "/v1/devices/$deviceId/workspaces/$workspaceId/claude-sessions", SavedConversationList.serializer()).sessions
+
     suspend fun signal(sessionId: String, terminate: Boolean) {
         request("POST", "/v1/sessions/$sessionId/signal", JsonObject.serializer(), encode(mapOf("signal" to if (terminate) "terminate" else "interrupt")), idem())
     }

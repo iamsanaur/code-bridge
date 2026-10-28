@@ -52,6 +52,7 @@ import com.e404.codebridge.ui.screens.DevicesScreen
 import com.e404.codebridge.ui.screens.HomeScreen
 import com.e404.codebridge.ui.screens.NewCloudSessionScreen
 import com.e404.codebridge.ui.screens.AddFolderScreen
+import com.e404.codebridge.ui.screens.ConversationsScreen
 import com.e404.codebridge.ui.screens.AgentsScreen
 import com.e404.codebridge.ui.screens.NewProjectScreen
 import com.e404.codebridge.ui.screens.NewSessionScreen
@@ -86,6 +87,7 @@ object Routes {
     const val NEW_SESSION = "new-session/{deviceId}/{workspaceId}"
     const val SESSION = "session/{id}"
     const val CHANGES = "changes/{deviceId}/{workspaceId}"
+    const val CONVERSATIONS = "conversations/{deviceId}/{workspaceId}"
     const val CREDENTIALS = "credentials"
     const val NEW_CLOUD = "cloud/new"
     const val USAGE = "usage"
@@ -98,6 +100,7 @@ object Routes {
     fun newSession(deviceId: String, workspaceId: String) = "new-session/$deviceId/$workspaceId"
     fun session(id: String) = "session/$id"
     fun changes(deviceId: String, workspaceId: String) = "changes/$deviceId/$workspaceId"
+    fun conversations(deviceId: String, workspaceId: String) = "conversations/$deviceId/$workspaceId"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -175,6 +178,7 @@ fun CodeBridgeApp(
                     composable(Routes.NEW_SESSION) { NewSessionScreen(nav, it.arguments!!.getString("deviceId")!!, it.arguments!!.getString("workspaceId")!!) }
                     composable(Routes.SESSION) { SessionScreen(nav, it.arguments!!.getString("id")!!) }
                     composable(Routes.CHANGES) { ChangesScreen(nav, it.arguments!!.getString("deviceId")!!, it.arguments!!.getString("workspaceId")!!) }
+                    composable(Routes.CONVERSATIONS) { ConversationsScreen(nav, it.arguments!!.getString("deviceId")!!, it.arguments!!.getString("workspaceId")!!) }
                     composable(Routes.CREDENTIALS) { CredentialsScreen(nav) }
                     composable(Routes.NEW_CLOUD) { NewCloudSessionScreen(nav) }
                     composable(Routes.USAGE) { UsageScreen(nav) }

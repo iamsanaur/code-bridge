@@ -123,3 +123,12 @@ By default the phone can only browse your home directory. To work on projects so
 - **Same rules inside.** Hidden folders (`.Trashes`, `.Spotlight-V100`, `.git` contents), app-data folders and `node_modules` are never listed, symlinks are skipped, and the agent resolves and re-checks every path, so a link out of the drive is refused. The location itself cannot be added as a project, only a folder inside it.
 - **Unplugged drives are harmless.** A root that is not mounted is skipped, and nothing under it can be opened.
 - At most 10 roots. `codebridge-agent policy remove-root <dir>` takes one away; `codebridge-agent status` lists them. Turning `allowFolderBrowse` off still disables all phone browsing.
+
+## Continuing an earlier Claude Code conversation
+
+The app can list the Claude Code conversations saved on the computer for a project and continue one (`claude.sessions`, then a session start with `resumeId`). This shows the phone text that is already on your computer, so it is limited:
+
+- **Only the project's own conversations.** The list comes from Claude Code's saved conversations for that exact project folder (`~/.claude/projects/<folder>`). A conversation can only be resumed if it is saved for that project; ids are checked as UUIDs and looked up in that folder only, so no other path is ever read.
+- **Only what a person or Claude said.** The title and the last few messages replayed into the chat are text only. Tool output, thinking, side chats and system notices are left out, and secrets are redacted like everywhere else. Only the first and last 96 KB of each file are read to list them.
+- **Same permissions as any session.** A resumed conversation uses your usual settings, including the Approve / Reject cards. It needs `allowClaudeCode`.
+- **Copy or continue.** A conversation used in the last 10 minutes may still be open in a terminal, and two writers could mix its history. The app flags those and offers **Continue as a copy** (`--fork-session`), which leaves the original unchanged.

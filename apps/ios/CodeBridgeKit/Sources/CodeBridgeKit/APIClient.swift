@@ -264,6 +264,11 @@ public actor APIClient {
         }
     }
 
+    /// The Claude Code conversations saved on the computer for one project, newest first.
+    public func savedConversations(deviceId: String, workspaceId: String) async throws -> [SavedConversation] {
+        try await request("GET", "/v1/devices/\(deviceId)/workspaces/\(workspaceId)/claude-sessions", as: SavedConversationList.self).sessions
+    }
+
     public func signal(_ id: String, terminate: Bool) async throws {
         try await send("POST", "/v1/sessions/\(id)/signal", body: ["signal": terminate ? "terminate" : "interrupt"], idempotent: true)
     }

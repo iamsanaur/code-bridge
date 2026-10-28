@@ -104,6 +104,7 @@ enum Route: Hashable {
     case newSession(deviceId: String, workspaceId: String)
     case session(String)
     case changes(deviceId: String, workspaceId: String)
+    case conversations(deviceId: String, workspaceId: String)
     case credentials
     case newCloudSession
     case usage
@@ -120,6 +121,7 @@ extension View {
             case let .newSession(d, w): NewSessionView(deviceId: d, workspaceId: w)
             case let .session(id): SessionView(sessionId: id)
             case let .changes(d, w): ChangesView(deviceId: d, workspaceId: w)
+            case let .conversations(d, w): ConversationsView(deviceId: d, workspaceId: w)
             case .credentials: CredentialsView()
             case .newCloudSession: NewCloudSessionView()
             case .usage: UsageView()

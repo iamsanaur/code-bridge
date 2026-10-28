@@ -243,6 +243,7 @@ fun DeviceScreen(nav: NavController, id: String) {
                         Text(w.displayPath, fontFamily = Mono, style = MaterialTheme.typography.bodySmall)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { nav.navigate(Routes.newSession(d.id, w.id)) }, enabled = d.online) { Text("New session") }
+                            if (d.capabilities?.claudeCodeAvailable == true) OutlinedButton(onClick = { nav.navigate(Routes.conversations(d.id, w.id)) }, enabled = d.online) { Text("Continue") }
                             if (w.isGitRepo) OutlinedButton(onClick = { nav.navigate(Routes.changes(d.id, w.id)) }, enabled = d.online) { Text("Changes") }
                         }
                     }

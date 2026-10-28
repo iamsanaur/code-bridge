@@ -189,9 +189,18 @@ data class CreateLocalSession(
     val argv: List<String>? = null,
     val confirmedRisk: Boolean? = null,
     val prompt: String? = null,
+    /** Continue a Claude Code conversation saved on the computer. */
+    val resumeId: String? = null,
+    val resumeAsCopy: Boolean? = null,
+    val resumeTitle: String? = null,
     val cols: Int? = null,
     val rows: Int? = null,
 )
+
+/** A Claude Code conversation saved on the computer; [lastActiveAt] is ISO 8601. */
+@Serializable data class SavedConversation(val id: String, val title: String, val lastActiveAt: String)
+
+@Serializable data class SavedConversationList(val sessions: List<SavedConversation>)
 
 @Serializable
 data class PairingClaim(

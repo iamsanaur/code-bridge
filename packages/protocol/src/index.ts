@@ -176,6 +176,10 @@ export const startSessionSchema = z.object({
   confirmedRisk: z.boolean().optional(),
   /** For `agent`/`claude_code`: optional first prompt. */
   prompt: z.string().min(1).max(LIMITS.maxPromptChars).optional(),
+  /** For `claude_code`: continue a conversation saved on this computer (from `claude.sessions`). */
+  resumeId: uuidSchema.optional(),
+  /** Continue it as a copy, leaving the original unchanged (safe if it is still open in a terminal). */
+  resumeAsCopy: z.boolean().optional(),
   model: z
     .string()
     .max(64)
@@ -271,8 +275,29 @@ export const readFileResultSchema = z.object({
 });
 export type ReadFileResult = z.infer<typeof readFileResultSchema>;
 
+/** Lists the Claude Code conversations saved on the computer for one project, newest first. */
+export const claudeSessionsCommandSchema = z.object({
+  op: z.literal('claude.sessions'),
+  workspaceId: idSchema,
+});
+
+export const claudeSessionsResultSchema = z.object({
+  sessions: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        title: z.string().max(200),
+        /** When the conversation last changed. */
+        lastActiveAt: z.string(),
+      }),
+    )
+    .max(50),
+});
+export type ClaudeSessionsResult = z.infer<typeof claudeSessionsResultSchema>;
+
 export const agentCommandSchema = z.discriminatedUnion('op', [
   createWorkspaceCommandSchema,
+  claudeSessionsCommandSchema,
   readFileCommandSchema,
   setProjectsRootCommandSchema,
   browseFoldersCommandSchema,
@@ -589,6 +614,10 @@ export const createLocalSessionBodySchema = z.object({
   argv: argvSchema.optional(),
   confirmedRisk: z.boolean().optional(),
   prompt: z.string().min(1).max(LIMITS.maxPromptChars).optional(),
+  resumeId: uuidSchema.optional(),
+  resumeAsCopy: z.boolean().optional(),
+  /** Shown as the session's title when continuing a conversation. */
+  resumeTitle: z.string().max(120).optional(),
   model: z
     .string()
     .max(64)

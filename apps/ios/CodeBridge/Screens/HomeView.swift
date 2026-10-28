@@ -224,6 +224,12 @@ struct DeviceView: View {
                                 NavigationLink(value: Route.newSession(deviceId: d.id, workspaceId: w.id)) { Text("New session") }
                                     .buttonStyle(.glassProminent)
                                     .disabled(!d.online)
+                                if d.capabilities?.claudeCodeAvailable == true {
+                                    NavigationLink(value: Route.conversations(deviceId: d.id, workspaceId: w.id)) { Text("Continue") }
+                                        .buttonStyle(.glass)
+                                        .disabled(!d.online)
+                                        .accessibilityHint("Pick up an earlier Claude Code conversation in this project")
+                                }
                                 if w.isGitRepo {
                                     NavigationLink(value: Route.changes(deviceId: d.id, workspaceId: w.id)) { Text("Changes") }
                                         .buttonStyle(.glass)

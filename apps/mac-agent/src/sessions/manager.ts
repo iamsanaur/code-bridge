@@ -5,6 +5,7 @@ import { AgentSession, sdkMessagesClient, type MessagesClient } from '../coding/
 import { ClaudeCodeSession, findClaudeCli } from '../coding/claudeCodeSession.js';
 import { gitDiff, gitStatus } from '../git.js';
 import { createProject, ProjectError, projectsRoot } from '../projects.js';
+import { hasClaudeSession, listClaudeSessions } from '../coding/history.js';
 import { readImageChunk } from '../images.js';
 import { browseFolders, prepareExistingWorkspace, validateProjectsRoot } from '../folders.js';
 import { abbreviateHome, PathError, prepareWorkspace, workspaceInfo } from '../workspaces.js';
@@ -155,6 +156,10 @@ export class SessionManager {
         return this.createWorkspace(c);
       case 'workspace.setProjectsRoot':
         return this.setProjectsRoot(c);
+      case 'claude.sessions':
+        if (!this.deps.getConfig().policy.allowClaudeCode)
+          throw new SessionError('policy_denied', 'Claude Code sessions are disabled on this Mac');
+        return listClaudeSessions(this.workspace(c.workspaceId));
       case 'file.read':
         return readImageChunk(this.workspace(c.workspaceId), c.path, c.offset, c.length).catch(
           (e: Error) => {
@@ -382,7 +387,20 @@ export class SessionManager {
             'unavailable',
             'The Claude Code CLI (`claude`) is not installed on this Mac',
           );
-        session = new ClaudeCodeSession(c.sessionId, ws, sink, cfg, cli, c.prompt);
+        if (c.resumeId && !(await hasClaudeSession(ws, c.resumeId)))
+          throw new SessionError(
+            'not_found',
+            'That conversation is no longer saved on this computer',
+          );
+        session = new ClaudeCodeSession(
+          c.sessionId,
+          ws,
+          sink,
+          cfg,
+          cli,
+          c.prompt,
+          c.resumeId ? { id: c.resumeId, asCopy: c.resumeAsCopy ?? false } : undefined,
+        );
         break;
       }
     }

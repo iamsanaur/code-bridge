@@ -10,6 +10,7 @@ import {
   platformSpawnOptions,
   prepareClaudeSpawn,
 } from '../platform.js';
+import { loadClaudeHistory } from './history.js';
 import { BaseSession, SessionError, type EventSink } from '../sessions/base.js';
 import { assessToolRequest, PermissionBridge, type PermissionVerdict } from './permissions.js';
 
@@ -80,6 +81,8 @@ export class ClaudeCodeSession extends BaseSession {
   private ended = false;
   private bridge: PermissionBridge | null = null;
   private launching = false;
+  /** The first turn of a copied conversation starts a new one from the original; later turns carry on from the copy. */
+  private forkNext = false;
 
   constructor(
     id: string,
@@ -88,13 +91,28 @@ export class ClaudeCodeSession extends BaseSession {
     private readonly config: AgentConfig,
     private readonly cliPath: string,
     private readonly initialPrompt?: string,
+    private readonly resume?: { id: string; asCopy: boolean; title?: string },
   ) {
     super(id, workspace, 'claude_code', sink);
   }
 
   async start(): Promise<void> {
+    if (this.resume) {
+      this.cliSessionId = this.resume.id;
+      this.forkNext = this.resume.asCopy;
+      // Show the end of the conversation so the chat is not empty.
+      for (const m of await loadClaudeHistory(this.workspace, this.resume.id).catch(() => [])) {
+        if (m.role === 'user') this.emit({ kind: 'user.prompt', text: m.text });
+        else {
+          this.emit({ kind: 'agent.text', delta: m.text });
+          this.emit({ kind: 'agent.turn_end', stopReason: 'end_turn' });
+        }
+      }
+    }
     this.setStatus('idle', {
-      message: 'Claude Code (headless) ready. Uses the CLI’s own login on this Mac.',
+      message: this.resume
+        ? `Continuing an earlier conversation${this.resume.asCopy ? ' as a copy' : ''}. Uses the CLI’s own login on this Mac.`
+        : 'Claude Code (headless) ready. Uses the CLI’s own login on this Mac.',
     });
     if (this.initialPrompt) this.prompt(this.initialPrompt);
   }
@@ -149,6 +167,10 @@ export class ClaudeCodeSession extends BaseSession {
     }
     if (this.ended) return;
     if (this.cliSessionId) args.push('--resume', this.cliSessionId);
+    if (this.forkNext && this.cliSessionId) {
+      args.push('--fork-session');
+      this.forkNext = false;
+    }
     let target;
     try {
       target = prepareClaudeSpawn(this.cliPath, args);

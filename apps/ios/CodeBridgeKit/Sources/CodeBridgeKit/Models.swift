@@ -192,8 +192,15 @@ public struct CreateLocalSession: Encodable, Sendable {
     public var argv: [String]?
     public var confirmedRisk: Bool?
     public var prompt: String?
+    /// Continue a Claude Code conversation saved on the computer.
+    public var resumeId: String?
+    public var resumeAsCopy: Bool?
+    public var resumeTitle: String?
 
-    public init(workspaceId: String, mode: SessionMode, presetId: String? = nil, argv: [String]? = nil, confirmedRisk: Bool? = nil, prompt: String? = nil) {
+    public init(workspaceId: String, mode: SessionMode, presetId: String? = nil, argv: [String]? = nil, confirmedRisk: Bool? = nil, prompt: String? = nil, resumeId: String? = nil, resumeAsCopy: Bool? = nil, resumeTitle: String? = nil) {
+        self.resumeId = resumeId
+        self.resumeAsCopy = resumeAsCopy
+        self.resumeTitle = resumeTitle
         self.workspaceId = workspaceId
         self.mode = mode
         self.presetId = presetId
@@ -202,6 +209,15 @@ public struct CreateLocalSession: Encodable, Sendable {
         self.prompt = prompt
     }
 }
+
+public struct SavedConversation: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var title: String
+    /// When the conversation last changed (ISO 8601).
+    public var lastActiveAt: String
+}
+
+struct SavedConversationList: Decodable { var sessions: [SavedConversation] }
 
 public struct PairingClaim: Codable, Equatable, Sendable {
     public var pairingId: String

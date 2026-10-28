@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
+  claudeSessionsResultSchema,
   createLocalSessionBodySchema,
   createWorkspaceCommandSchema,
   addWorkspaceCommandSchema,
@@ -183,7 +184,7 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
             ? 'Interactive shell'
             : body.mode === 'agent'
               ? (body.prompt?.slice(0, 120) ?? 'Coding agent')
-              : (body.prompt?.slice(0, 120) ?? 'Claude Code');
+              : (body.resumeTitle ?? body.prompt?.slice(0, 120) ?? 'Claude Code');
       await db.query(
         `INSERT INTO sessions (id, user_id, kind, device_id, workspace_id, workspace_name, mode, title, status)
        VALUES ($1, $2, 'local', $3, $4, $5, $6, $7, 'starting') ON CONFLICT (id) DO NOTHING`,
@@ -200,6 +201,8 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
         argv: body.argv,
         confirmedRisk: body.confirmedRisk,
         prompt: body.prompt,
+        resumeId: body.resumeId,
+        resumeAsCopy: body.resumeAsCopy,
         model: body.model,
         cols: body.cols ?? 80,
         rows: body.rows ?? 24,
@@ -430,6 +433,19 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       .header('x-content-type-options', 'nosniff')
       .header('cache-control', 'private, max-age=300')
       .send(Buffer.concat(chunks));
+  });
+
+  /** The Claude Code conversations saved on the computer for one project, so one can be continued from the phone. */
+  app.get('/v1/devices/:deviceId/workspaces/:workspaceId/claude-sessions', auth, async (req) => {
+    const { deviceId, workspaceId } = z
+      .object({ deviceId: uuidSchema, workspaceId: idSchema })
+      .parse(req.params);
+    const dev = await loadDevice(deviceId, req.auth!.userId);
+    return claudeSessionsResultSchema.parse(
+      assertAck(
+        await relay.sendCommand(dev.id, randomUUID(), { op: 'claude.sessions', workspaceId }),
+      ),
+    );
   });
 
   app.get('/v1/devices/:deviceId/workspaces/:workspaceId/git/status', auth, async (req) => {
