@@ -30,7 +30,7 @@ Usage:
   codebridge-agent workspace remove <id>
   codebridge-agent credentials set           Store an Anthropic API key in the system credential store (for the coding agent)
   codebridge-agent credentials status|clear
-  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowWorkspaceCreation|allowFolderBrowse> <true|false>
+  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowClaudeCodeEdits|allowWorkspaceCreation|allowFolderBrowse> <true|false>
   codebridge-agent policy set projectsRoot <dir>   Where projects created from the phone live (default ~/CodeBridge)
   codebridge-agent service install|uninstall Start at login (LaunchAgent on macOS, scheduled task on Windows)
   codebridge-agent unpair                    Revoke this Mac and delete its credential
@@ -254,6 +254,7 @@ async function main(argv: string[]): Promise<number> {
           'allowCustomCommands',
           'allowInteractiveShell',
           'allowClaudeCode',
+          'allowClaudeCodeEdits',
           'allowWorkspaceCreation',
           'allowFolderBrowse',
         ] as const;
@@ -269,6 +270,7 @@ async function main(argv: string[]): Promise<number> {
         if (
           value === 'true' &&
           key !== 'allowClaudeCode' &&
+          key !== 'allowClaudeCodeEdits' &&
           key !== 'allowWorkspaceCreation' &&
           key !== 'allowFolderBrowse'
         ) {
@@ -342,6 +344,7 @@ function printPolicy(c: AgentConfig) {
   console.log(`  allowCustomCommands:   ${c.policy.allowCustomCommands}`);
   console.log(`  allowInteractiveShell: ${c.policy.allowInteractiveShell}`);
   console.log(`  allowClaudeCode:       ${c.policy.allowClaudeCode}`);
+  console.log(`  allowClaudeCodeEdits:  ${c.policy.allowClaudeCodeEdits}`);
   console.log(`  allowWorkspaceCreation: ${c.policy.allowWorkspaceCreation}`);
   console.log(`  allowFolderBrowse:     ${c.policy.allowFolderBrowse}`);
   console.log(`  projectsRoot:          ${projectsRoot(c.policy)}`);

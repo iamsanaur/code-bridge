@@ -53,6 +53,12 @@ export const configSchema = z.object({
       /** Allow headless Claude Code sessions (uses the `claude` CLI's own login). */
       allowClaudeCode: z.boolean().default(true),
       /**
+       * Let Claude Code change files in the project without asking (`--permission-mode acceptEdits`). Headless
+       * Claude Code cannot ask anyone, so without this it can only read. Shell commands outside Claude Code's
+       * own safe list are still declined, and it cannot leave the project folder.
+       */
+      allowClaudeCodeEdits: z.boolean().default(true),
+      /**
        * Allow the phone to create a NEW project folder (name only, never a path) inside `projectsRoot`. It cannot
        * reach any existing folder this way, so it does not widen what the phone can access.
        */
@@ -82,6 +88,7 @@ export const configSchema = z.object({
       allowCustomCommands: false,
       allowInteractiveShell: false,
       allowClaudeCode: true,
+      allowClaudeCodeEdits: true,
       allowWorkspaceCreation: true,
       allowFolderBrowse: true,
       presets: DEFAULT_PRESETS,

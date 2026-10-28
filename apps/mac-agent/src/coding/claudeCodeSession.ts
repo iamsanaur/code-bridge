@@ -20,8 +20,10 @@ import { BaseSession, SessionError, type EventSink } from '../sessions/base.js';
  *   CodeBridge never reads, copies or forwards Claude Code credentials, and does
  *   not pass its own Anthropic API key to the CLI.
  * - Tool permissions are governed by Claude Code's own settings for the project.
- *   CodeBridge does not pass --dangerously-skip-permissions; tools that would need
- *   an interactive approval are declined by the CLI in headless mode.
+ *   CodeBridge never passes --dangerously-skip-permissions. With `allowClaudeCodeEdits`
+ *   (the default) it passes `--permission-mode acceptEdits`, so file edits inside the
+ *   project go through; anything else that would need an interactive approval is
+ *   declined by the CLI in headless mode.
  * - This is a new CLI session in the workspace, not a connection to any existing
  *   Claude.ai or Claude Code session.
  */
@@ -81,6 +83,7 @@ export class ClaudeCodeSession extends BaseSession {
       throw new SessionError('busy', 'Claude Code is still working on the previous prompt');
     this.emit({ kind: 'user.prompt', text });
     const args = ['-p', text, '--output-format', 'stream-json', '--verbose'];
+    if (this.config.policy.allowClaudeCodeEdits) args.push('--permission-mode', 'acceptEdits');
     if (this.cliSessionId) args.push('--resume', this.cliSessionId);
     let target;
     try {

@@ -84,3 +84,11 @@ The phone can also pick a folder that already exists on the computer, so Claude 
 - **Audited.** `workspace.add` is recorded on the relay.
 
 A folder that is added can then be used by any session mode you allow on that computer, so keep the other switches (`allowCustomCommands`, `allowInteractiveShell`) off unless you need them.
+
+## Claude Code can edit files (and what it still cannot do)
+
+Headless Claude Code has no way to ask a person for permission, so by default it could only read. With `allowClaudeCodeEdits` (on by default) the agent starts it with `--permission-mode acceptEdits`: file edits inside the project go through without a prompt.
+
+- It is **not** `--dangerously-skip-permissions`, which CodeBridge never passes. Claude Code keeps its own limits: edits stay inside the project folder, and shell commands outside its safe list are still declined.
+- The folder is the one you registered, so the Folders limits above decide what it can reach.
+- `codebridge-agent policy set allowClaudeCodeEdits false` makes Claude Code read-only again.

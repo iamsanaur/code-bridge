@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { chmod, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
@@ -330,5 +330,36 @@ describe('ClaudeCodeSession stream-json parsing (mocked CLI output)', () => {
     expect(log.events[3]!.event).toMatchObject({
       usage: { estimatedCostUsd: 0.0123, source: 'claude_code_result', model: 'claude-opus-5-5' },
     });
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('ClaudeCodeSession permission mode', () => {
+  const echoArgs = async (overrides: { allowClaudeCodeEdits: boolean }) => {
+    const ws = await tempWorkspace();
+    const cli = path.join(ws.path, 'fake-claude.sh');
+    await writeFile(
+      cli,
+      '#!/bin/sh\nprintf \'{"type":"assistant","message":{"content":[{"type":"text","text":"%s"}]}}\\n\' "$*"\n',
+    );
+    await chmod(cli, 0o755);
+    const log = new EventLog();
+    const s = new ClaudeCodeSession(randomUUID(), ws, log.sink, testConfig(ws, overrides), cli);
+    s.prompt('hello');
+    for (let i = 0; i < 100 && !log.events.some((e) => e.event.kind === 'agent.turn_end'); i++)
+      await new Promise((r) => setTimeout(r, 50));
+    return log.events
+      .map((e) => e.event)
+      .flatMap((e) => (e.kind === 'agent.text' ? [e.delta] : []))
+      .join('');
+  };
+
+  it('lets Claude Code edit files in the project by default, never skipping all permissions', async () => {
+    const args = await echoArgs({ allowClaudeCodeEdits: true });
+    expect(args).toContain('--permission-mode acceptEdits');
+    expect(args).not.toContain('dangerously');
+  });
+
+  it('stays read-only when the owner turns edits off', async () => {
+    expect(await echoArgs({ allowClaudeCodeEdits: false })).not.toContain('--permission-mode');
   });
 });
