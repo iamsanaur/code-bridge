@@ -10,6 +10,27 @@ import kotlinx.serialization.json.contentOrNull
 object ToolDisplay {
     private val argumentKeys = listOf("command", "file_path", "path", "notebook_path", "pattern", "url", "query", "description", "prompt")
 
+    /** Claude Code's tool for starting a subagent (called `Task` in older versions, `Agent` in newer ones). */
+    fun isSubagent(name: String) = name == "Task" || name == "Agent"
+
+    /** What a subagent was asked to do and which kind it is. */
+    fun subagentInfo(summary: String): Pair<String?, String?> {
+        val obj = runCatching { Json.parseToJsonElement(summary) as? JsonObject }.getOrNull() ?: return null to null
+        return (obj["description"] as? JsonPrimitive)?.contentOrNull to (obj["subagent_type"] as? JsonPrimitive)?.contentOrNull
+    }
+
+    /** A subagent's final report, without the harness's "[Subagent hand-back]" preamble and its indentation. */
+    fun subagentReport(result: String): String {
+        val text = resultText(result)
+        val marker = "The report follows:"
+        val at = text.indexOf(marker)
+        val body = if (at < 0) text else text.substring(at + marker.length)
+        // The harness appends the agent's id and token usage after the report; the phone has no use for them.
+        return body.lines().map { if (it.startsWith("  ")) it.drop(2) else it }
+            .takeWhile { !it.startsWith("agentId:") && !it.startsWith("<usage>") }
+            .joinToString("\n").trim()
+    }
+
     /** The one argument worth showing next to the tool name, or null when there is none. */
     fun headline(summary: String, limit: Int = 90): String? {
         val obj = runCatching { Json.parseToJsonElement(summary) as? JsonObject }.getOrNull()

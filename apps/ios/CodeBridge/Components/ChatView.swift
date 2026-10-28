@@ -6,6 +6,8 @@ import SwiftUI
 struct ChatTranscriptView: View {
     let items: [ChatItem]
     let revision: Int
+    /// What each subagent did, by the id of the Agent/Task call that started it.
+    var subagents: [String: [ChatItem]] = [:]
     var working = false
     var onRetry: (() -> Void)?
     @State private var position = ScrollPosition(edge: .bottom)
@@ -80,10 +82,10 @@ struct ChatTranscriptView: View {
                 }
                 ForEach(ImageRefs.paths(in: text), id: \.self) { ChatImage(path: $0) }
             }
-        case let .tool(_, _, name, summary, result):
+        case let .tool(_, toolUseId, name, summary, result):
             VStack(alignment: .leading, spacing: 8) {
                 if startsRun { ClaudeHeader() }
-                ToolCard(name: name, summary: summary, result: result)
+                ToolCard(name: name, summary: summary, result: result, steps: subagents[toolUseId] ?? [])
             }
         case let .failure(_, code, message, retryable):
             VStack(alignment: .leading, spacing: 8) {
@@ -141,12 +143,14 @@ private struct ToolCard: View {
     let name: String
     let summary: String
     let result: ToolOutcome?
+    var steps: [ChatItem] = []
     @State private var expanded: Bool?
 
     private var diff: ToolDisplay.Diff? { ToolDisplay.diff(name: name, summary: summary) }
     private var images: [String] { ImageRefs.forTool(summary: summary, result: result?.summary) }
-    private var isOpen: Bool { expanded ?? (diff != nil || !images.isEmpty) }
-    private var edge: Color { result.map { $0.ok ? Palette.success : Palette.danger } ?? Palette.warning }
+    private var isSubagent: Bool { ToolDisplay.isSubagent(name) }
+    private var isOpen: Bool { expanded ?? (diff != nil || !images.isEmpty || (isSubagent && result == nil)) }
+    private var edge: Color { isSubagent ? Palette.cloud : (result.map { $0.ok ? Palette.success : Palette.danger } ?? Palette.warning) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -156,7 +160,7 @@ private struct ToolCard: View {
                     HStack(spacing: 8) {
                         Image(systemName: "chevron.right").font(.caption.weight(.semibold))
                             .rotationEffect(.degrees(isOpen ? 90 : 0)).foregroundStyle(.secondary)
-                        (Text(name).fontWeight(.medium) + Text("  /  ").foregroundStyle(.tertiary)
+                        (Text(isSubagent ? "Agent" : name).fontWeight(.medium) + Text("  /  ").foregroundStyle(.tertiary)
                          + Text(diff?.path.components(separatedBy: "/").last ?? ToolDisplay.headline(summary: summary) ?? "Details")
                             .font(.system(.subheadline, design: .monospaced)).foregroundColor(diff == nil ? .secondary : .accentColor))
                             .font(.subheadline)
@@ -178,7 +182,9 @@ private struct ToolCard: View {
 
     @ViewBuilder
     private var details: some View {
-        if let diff {
+        if isSubagent {
+            subagentDetails
+        } else if let diff {
             VStack(alignment: .leading, spacing: 0) {
                 Text(diff.path).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.head).padding(8)
@@ -216,6 +222,44 @@ private struct ToolCard: View {
             .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
             .textSelection(.enabled)
         }
+    }
+}
+
+extension ToolCard {
+    /// A subagent: what it was asked, the steps it took (live), and its final report.
+    @ViewBuilder
+    fileprivate var subagentDetails: some View {
+        let info = ToolDisplay.subagentInfo(summary: summary)
+        VStack(alignment: .leading, spacing: 8) {
+            if let type = info.type {
+                Text(type).font(.caption2.weight(.semibold)).padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Palette.cloud.opacity(0.18), in: .capsule).foregroundStyle(Palette.cloud)
+            }
+            ForEach(steps) { step in
+                switch step {
+                case let .tool(_, _, name, summary, result):
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Circle().fill(result.map { $0.ok ? Palette.success : Palette.danger } ?? Palette.warning).frame(width: 7, height: 7)
+                        (Text(name).fontWeight(.medium) + Text("  \(ToolDisplay.headline(summary: summary) ?? "")").foregroundStyle(.secondary))
+                            .font(.system(size: 12, design: .monospaced)).lineLimit(1)
+                        if result == nil { ProgressView().controlSize(.mini) }
+                    }
+                case let .assistant(_, text, _):
+                    Text(text).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                default: EmptyView()
+                }
+            }
+            if let result {
+                Divider()
+                Text(ToolDisplay.subagentReport(result.summary)).font(.footnote).textSelection(.enabled)
+                    .foregroundStyle(result.ok ? Color.primary : Palette.danger)
+            } else if steps.isEmpty {
+                Text("Starting…").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
     }
 }
 

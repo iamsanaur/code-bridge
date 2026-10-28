@@ -308,7 +308,7 @@ fun SessionScreen(nav: NavController, id: String) {
                     else null
                 }
                 androidx.compose.runtime.CompositionLocalProvider(LocalImageSource provides imageSource) {
-                    ChatTranscript(state.chat, revision, onRetry = lastPrompt?.let { p -> { action.run { api.prompt(id, p) } } }, modifier = Modifier.weight(1f).fillMaxWidth(), working = status == dev.codebridge.core.SessionStatus.RUNNING)
+                    ChatTranscript(state.chat, revision, onRetry = lastPrompt?.let { p -> { action.run { api.prompt(id, p) } } }, modifier = Modifier.weight(1f).fillMaxWidth(), working = status == dev.codebridge.core.SessionStatus.RUNNING, subagents = remember(revision) { state.subagents.mapValues { it.value.toList() } })
                 }
                 Composer(
                     onSend = { text -> lastPrompt = text; action.run { api.prompt(id, text) } },

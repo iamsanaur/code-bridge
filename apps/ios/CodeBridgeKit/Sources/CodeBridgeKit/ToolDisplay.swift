@@ -7,6 +7,28 @@ public enum ToolDisplay {
         "command", "file_path", "path", "notebook_path", "pattern", "url", "query", "description", "prompt",
     ]
 
+    /// Claude Code's tool for starting a subagent (called `Task` in older versions, `Agent` in newer ones).
+    public static func isSubagent(_ name: String) -> Bool { name == "Task" || name == "Agent" }
+
+    /// What a subagent was asked to do and which kind it is.
+    public static func subagentInfo(summary: String) -> (description: String?, type: String?) {
+        guard let data = summary.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return (nil, nil) }
+        return (obj["description"] as? String, obj["subagent_type"] as? String)
+    }
+
+    /// A subagent's final report, without the harness's "[Subagent hand-back]" preamble and its indentation.
+    public static func subagentReport(_ result: String) -> String {
+        let text = resultText(result)
+        var body = Substring(text)
+        if let r = text.range(of: "The report follows:") { body = text[r.upperBound...] }
+        // The harness appends the agent's id and token usage after the report; the phone has no use for them.
+        let lines = body.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.hasPrefix("  ") ? String($0.dropFirst(2)) : String($0) }
+        let kept = lines.prefix { !$0.hasPrefix("agentId:") && !$0.hasPrefix("<usage>") }
+        return kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// The one argument worth showing next to the tool name, or nil when there is none.
     public static func headline(summary: String, limit: Int = 90) -> String? {
         guard let data = summary.data(using: .utf8),

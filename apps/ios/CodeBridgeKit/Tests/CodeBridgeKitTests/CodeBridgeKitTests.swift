@@ -167,3 +167,27 @@ import Testing
         #expect(r.workspace.name == "p" && r.gitInit)
     }
 }
+
+@Suite struct SubagentTests {
+    @Test func subagentStepsNestUnderTheirTaskCard() {
+        var s = SessionState()
+        s.apply(SequencedEvent(sessionId: "s", seq: 1, event: .toolCall(toolUseId: "agent1", name: "Agent", summary: #"{"description":"Count exports"}"#)))
+        s.apply(SequencedEvent(sessionId: "s", seq: 2, event: .toolCall(toolUseId: "r1", name: "Read", summary: "{}", parent: "agent1")))
+        s.apply(SequencedEvent(sessionId: "s", seq: 3, event: .toolResult(toolUseId: "r1", ok: true, summary: "1 line", parent: "agent1")))
+        s.apply(SequencedEvent(sessionId: "s", seq: 4, event: .agentText("Two exports.", parent: "agent1")))
+        s.apply(SequencedEvent(sessionId: "s", seq: 5, event: .toolResult(toolUseId: "agent1", ok: true, summary: "done")))
+        #expect(s.chat.count == 1)
+        #expect(s.subagents["agent1"]?.count == 2)
+        if case let .tool(_, _, name, _, result)? = s.subagents["agent1"]?.first { #expect(name == "Read"); #expect(result?.ok == true) }
+        if case let .tool(_, _, _, _, result)? = s.chat.first { #expect(result?.summary == "done") }
+    }
+
+    @Test func parsesTheParentIdAndHandBackReport() throws {
+        let json = #"{"sessionId":"s","seq":2,"ts":"","event":{"kind":"agent.tool_call","toolUseId":"r1","name":"Read","summary":"{}","parentToolUseId":"agent1"}}"#
+        let ev = try JSONDecoder().decode(SequencedEvent.self, from: Data(json.utf8))
+        #expect(ev.event == .toolCall(toolUseId: "r1", name: "Read", summary: "{}", parent: "agent1"))
+        let raw = "  <tools-used-before-summary>Read</tools-used-before-summary>\n  [Subagent hand-back] blah.\n  The report follows:\n  `a.ts` exports **2**.\n  1. one\n  agentId: abc (use SendMessage)\n  <usage>subagent_tokens: 1</usage>"
+        #expect(ToolDisplay.subagentReport(raw) == "`a.ts` exports **2**.\n1. one")
+        #expect(ToolDisplay.isSubagent("Agent") && ToolDisplay.isSubagent("Task") && !ToolDisplay.isSubagent("Read"))
+    }
+}

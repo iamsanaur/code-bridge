@@ -41,6 +41,8 @@ interface StreamLine {
   type?: string;
   subtype?: string;
   session_id?: string;
+  /** Set on messages that a subagent produced: the Task tool_use that started it. */
+  parent_tool_use_id?: string | null;
   message?: { content?: Array<Record<string, unknown>> };
   total_cost_usd?: number;
   usage?: {
@@ -209,16 +211,21 @@ export class ClaudeCodeSession extends BaseSession {
     }
     if (msg.session_id) this.cliSessionId = msg.session_id;
     if (msg.type === 'system' && msg.subtype === 'init' && msg.model) this.model = msg.model;
+    const parent =
+      typeof msg.parent_tool_use_id === 'string' && msg.parent_tool_use_id
+        ? { parentToolUseId: msg.parent_tool_use_id.slice(0, 128) }
+        : {};
     if (msg.type === 'assistant') {
       for (const b of msg.message?.content ?? []) {
         if (b.type === 'text' && typeof b.text === 'string')
-          this.emit({ kind: 'agent.text', delta: (b.text as string).slice(0, 32_000) });
+          this.emit({ kind: 'agent.text', delta: (b.text as string).slice(0, 32_000), ...parent });
         if (b.type === 'tool_use') {
           this.emit({
             kind: 'agent.tool_call',
             toolUseId: String(b.id ?? ''),
             name: String(b.name ?? 'tool'),
             summary: redactSecrets(JSON.stringify(b.input ?? {})).slice(0, 3900),
+            ...parent,
           });
         }
       }
@@ -232,6 +239,7 @@ export class ClaudeCodeSession extends BaseSession {
             toolUseId: String(b.tool_use_id ?? ''),
             ok: !b.is_error,
             summary: redactSecrets(content).slice(0, 7900),
+            ...parent,
           });
         }
       }

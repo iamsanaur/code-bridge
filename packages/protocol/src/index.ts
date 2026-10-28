@@ -103,19 +103,26 @@ export const sessionEventSchema = z.discriminatedUnion('kind', [
     data: z.string().max(LIMITS.maxOutputChunkChars),
   }),
   z.object({ kind: z.literal('user.prompt'), text: z.string().max(LIMITS.maxPromptChars) }),
-  z.object({ kind: z.literal('agent.text'), delta: z.string().max(LIMITS.maxOutputChunkChars) }),
+  z.object({
+    kind: z.literal('agent.text'),
+    delta: z.string().max(LIMITS.maxOutputChunkChars),
+    /** Set when a subagent said this: the tool_use id of the Task call that started it. */
+    parentToolUseId: z.string().max(128).optional(),
+  }),
   z.object({ kind: z.literal('agent.turn_end'), stopReason: z.string().max(64) }),
   z.object({
     kind: z.literal('agent.tool_call'),
     toolUseId: z.string().max(128),
     name: z.string().max(128),
     summary: z.string().max(4000),
+    parentToolUseId: z.string().max(128).optional(),
   }),
   z.object({
     kind: z.literal('agent.tool_result'),
     toolUseId: z.string().max(128),
     ok: z.boolean(),
     summary: z.string().max(8000),
+    parentToolUseId: z.string().max(128).optional(),
   }),
   z.object({
     kind: z.literal('approval.request'),

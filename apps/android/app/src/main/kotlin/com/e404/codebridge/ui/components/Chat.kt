@@ -172,7 +172,15 @@ private val UserBlue = Color(0xFF2563EB)
  * text under a "Claude" header, and every tool call as a collapsible card (file edits show their changed lines).
  */
 @Composable
-fun ChatTranscript(items: List<ChatItem>, revision: Long, onRetry: (() -> Unit)?, modifier: Modifier = Modifier, working: Boolean = false) {
+fun ChatTranscript(
+    items: List<ChatItem>,
+    revision: Long,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    working: Boolean = false,
+    /** What each subagent did, by the id of the Agent/Task call that started it. */
+    subagents: Map<String, List<ChatItem>> = emptyMap(),
+) {
     val state = rememberLazyListState()
     val rows = items.size + if (working) 1 else 0
     // Stay on the newest line while text streams in, history loads and pictures arrive, until the reader scrolls up.
@@ -209,7 +217,7 @@ fun ChatTranscript(items: List<ChatItem>, revision: Long, onRetry: (() -> Unit)?
             }
         }
         itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
-            ChatRow(item, startsRun = index == 0 || items[index - 1] is ChatItem.UserMessage, onRetry = onRetry)
+            ChatRow(item, startsRun = index == 0 || items[index - 1] is ChatItem.UserMessage, onRetry = onRetry, subagents = subagents)
         }
         if (working) item(key = "working") { WorkingLine() }
     }
@@ -258,7 +266,7 @@ private fun inlineMarkdown(text: String, codeColor: Color): AnnotatedString = bu
 }
 
 @Composable
-private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?) {
+private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?, subagents: Map<String, List<ChatItem>>) {
     val c = CodeBridgeTheme.colors
     when (item) {
         is ChatItem.UserMessage -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -289,7 +297,7 @@ private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?) 
         }
         is ChatItem.Tool -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (startsRun) ClaudeHeader()
-            ToolCard(item)
+            ToolCard(item, steps = subagents[item.toolUseId].orEmpty())
         }
         is ChatItem.Failure -> Card(colors = CardDefaults.cardColors(containerColor = c.danger.copy(alpha = 0.12f)), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -307,14 +315,16 @@ private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?) 
  * they changed; other tools show what was asked and what came back.
  */
 @Composable
-private fun ToolCard(item: ChatItem.Tool) {
+private fun ToolCard(item: ChatItem.Tool, steps: List<ChatItem> = emptyList()) {
     val c = CodeBridgeTheme.colors
     val diff = remember(item.summary) { ToolDisplay.diff(item.summary) }
     var expanded by remember(item.id) { mutableStateOf<Boolean?>(null) }
     val images = remember(item.summary, item.result?.summary) { ImageRefs.forTool(item.summary, item.result?.summary) }
-    val open = expanded ?: (diff != null || images.isNotEmpty())
+    val isSubagent = ToolDisplay.isSubagent(item.name)
+    val open = expanded ?: (diff != null || images.isNotEmpty() || (isSubagent && item.result == null))
     val result = item.result
     val edge = when {
+        isSubagent -> c.cloud
         result == null -> c.warning
         result.ok -> c.success
         else -> c.danger
@@ -330,7 +340,7 @@ private fun ToolCard(item: ChatItem.Tool) {
                 Icon(if (open) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
                 Text(
                     buildAnnotatedString {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(item.name) }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(if (isSubagent) "Agent" else item.name) }
                         withStyle(SpanStyle(color = MaterialTheme.colorScheme.outline)) { append("  /  ") }
                         withStyle(SpanStyle(fontFamily = Mono, color = if (diff != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)) {
                             append(diff?.path?.substringAfterLast('/') ?: ToolDisplay.headline(item.summary) ?: "Details")
@@ -342,7 +352,9 @@ private fun ToolCard(item: ChatItem.Tool) {
             }
             if (open) {
                 val panel = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                if (diff != null) {
+                if (isSubagent) {
+                    SubagentPanel(item, steps, panel)
+                } else if (diff != null) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(panel)) {
                         Text(diff.path, fontFamily = Mono, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.StartEllipsis, modifier = Modifier.padding(8.dp))
                         diff.lines.forEach { l ->
@@ -372,6 +384,47 @@ private fun ToolCard(item: ChatItem.Tool) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** A subagent: what it was asked, the steps it took (live), and its final report. */
+@Composable
+private fun SubagentPanel(item: ChatItem.Tool, steps: List<ChatItem>, panel: Color) {
+    val c = CodeBridgeTheme.colors
+    val type = ToolDisplay.subagentInfo(item.summary).second
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(panel).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (type != null) {
+            Text(type, style = MaterialTheme.typography.labelSmall, color = c.cloud, modifier = Modifier.background(c.cloud.copy(alpha = 0.18f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp))
+        }
+        steps.forEach { step ->
+            when (step) {
+                is ChatItem.Tool -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val tone = when {
+                        step.result == null -> c.warning
+                        step.result!!.ok -> c.success
+                        else -> c.danger
+                    }
+                    Box(Modifier.size(7.dp).background(tone, RoundedCornerShape(50)))
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(step.name) }
+                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) { append("  " + ToolDisplay.headline(step.summary).orEmpty()) }
+                        },
+                        fontFamily = Mono, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                    if (step.result == null) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp)
+                }
+                is ChatItem.Assistant -> Text(step.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                else -> Unit
+            }
+        }
+        val result = item.result
+        if (result != null) {
+            androidx.compose.material3.HorizontalDivider()
+            SelectionContainer { Text(ToolDisplay.subagentReport(result.summary), style = MaterialTheme.typography.bodySmall, color = if (result.ok) MaterialTheme.colorScheme.onSurface else c.danger) }
+        } else if (steps.isEmpty()) {
+            Text("Starting…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

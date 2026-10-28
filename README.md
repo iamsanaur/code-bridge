@@ -69,6 +69,8 @@ Open the app, tap **Scan QR code**, scan the code from step 1, confirm the relay
 
 Choose your computer, then tap **Add existing folder** to browse your computer's home folder and pick a project that is already there, or tap **New project** to start a fresh one (a new folder on your computer, optionally with `git init`), then start a terminal or Claude Code session. Add more computers any time from **Add a computer**.
 
+The **Agents** tab shows every Claude Code session across your computers at a glance: which ones need your approval, which are working, and which are idle. Cancel a running turn without opening it, start another agent in any project, and see the subagents Claude starts for a task as their own cards, with the steps they took.
+
 ## Screenshots
 
 <table>

@@ -251,3 +251,26 @@ class ImageRefsTest {
         kotlin.test.assertEquals("[image]", ToolDisplay.resultText("""[{"type":"image","source":{"type":"base64","data":"AAAA"}}]"""))
     }
 }
+
+class SubagentTest {
+    private fun ev(seq: Int, e: SessionEvent) = SequencedEvent("s", seq, "", e)
+
+    @kotlin.test.Test fun subagentStepsNestUnderTheirTaskCard() {
+        val s = SessionState()
+        s.apply(ev(1, SessionEvent.ToolCall("agent1", "Agent", """{"description":"Count exports"}""")))
+        s.apply(ev(2, SessionEvent.ToolCall("r1", "Read", "{}", parentToolUseId = "agent1")))
+        s.apply(ev(3, SessionEvent.ToolResult("r1", true, "1 line", parentToolUseId = "agent1")))
+        s.apply(ev(4, SessionEvent.AgentText("Two exports.", parentToolUseId = "agent1")))
+        s.apply(ev(5, SessionEvent.ToolResult("agent1", true, "done")))
+        kotlin.test.assertEquals(1, s.chat.size)
+        kotlin.test.assertEquals(2, s.subagents["agent1"]?.size)
+        kotlin.test.assertEquals(true, (s.subagents["agent1"]!![0] as ChatItem.Tool).result?.ok)
+        kotlin.test.assertEquals("done", (s.chat[0] as ChatItem.Tool).result?.summary)
+    }
+
+    @kotlin.test.Test fun handBackReportIsCleaned() {
+        val raw = "  <tools-used-before-summary>Read</tools-used-before-summary>\n  [Subagent hand-back] blah.\n  The report follows:\n  `a.ts` exports **2**.\n  1. one\n  agentId: abc (use SendMessage)\n  <usage>subagent_tokens: 1</usage>"
+        kotlin.test.assertEquals("`a.ts` exports **2**.\n1. one", ToolDisplay.subagentReport(raw))
+        kotlin.test.assertTrue(ToolDisplay.isSubagent("Agent") && ToolDisplay.isSubagent("Task") && !ToolDisplay.isSubagent("Read"))
+    }
+}

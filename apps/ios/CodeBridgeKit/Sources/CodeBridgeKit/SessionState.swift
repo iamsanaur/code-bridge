@@ -32,6 +32,8 @@ public struct SessionState: Sendable {
     public private(set) var usage: Usage?
     public private(set) var terminal = TerminalBuffer(maxLines: 5000)
     public private(set) var chat: [ChatItem] = []
+    /// What each subagent said and did, by the id of the Task/Agent tool call that started it.
+    public private(set) var subagents: [String: [ChatItem]] = [:]
     public private(set) var approvals: [PendingApproval] = []
     public private(set) var revision = 0
     private var pending: [Int: SequencedEvent] = [:]
@@ -78,21 +80,22 @@ public struct SessionState: Sendable {
         case let .userPrompt(text):
             closeStreaming()
             chat.append(.user(id: id, text: text))
-        case let .agentText(delta):
-            if case let .assistant(aid, text, true)? = chat.last {
-                chat[chat.count - 1] = .assistant(id: aid, text: text + delta, streaming: true)
-            } else {
-                chat.append(.assistant(id: id, text: delta, streaming: true))
-            }
+        case let .agentText(delta, parent):
+            if let parent { Self.appendText(&subagents[parent, default: []], id: id, delta: delta) }
+            else { Self.appendText(&chat, id: id, delta: delta) }
         case .turnEnd: closeStreaming()
-        case let .toolCall(toolUseId, name, summary):
-            closeStreaming()
-            chat.append(.tool(id: id, toolUseId: toolUseId, name: name, summary: summary, result: nil))
-        case let .toolResult(toolUseId, ok, summary):
-            if let idx = chat.lastIndex(where: { if case let .tool(_, t, _, _, _) = $0 { t == toolUseId } else { false } }),
-               case let .tool(tid, t, name, s, _) = chat[idx] {
-                chat[idx] = .tool(id: tid, toolUseId: t, name: name, summary: s, result: ToolOutcome(ok: ok, summary: summary))
+        case let .toolCall(toolUseId, name, summary, parent):
+            let item = ChatItem.tool(id: id, toolUseId: toolUseId, name: name, summary: summary, result: nil)
+            if let parent {
+                Self.closeStreaming(&subagents[parent, default: []])
+                subagents[parent, default: []].append(item)
+            } else {
+                closeStreaming()
+                chat.append(item)
             }
+        case let .toolResult(toolUseId, ok, summary, parent):
+            if let parent { Self.setResult(&subagents[parent, default: []], toolUseId: toolUseId, ok: ok, summary: summary) }
+            else { Self.setResult(&chat, toolUseId: toolUseId, ok: ok, summary: summary) }
         case let .approvalRequest(a):
             approvals.removeAll { $0.approvalId == a.approvalId }
             approvals.append(a)
@@ -107,9 +110,26 @@ public struct SessionState: Sendable {
         }
     }
 
-    private mutating func closeStreaming() {
-        if case let .assistant(id, text, true)? = chat.last {
-            chat[chat.count - 1] = .assistant(id: id, text: text, streaming: false)
+    private mutating func closeStreaming() { Self.closeStreaming(&chat) }
+
+    private static func closeStreaming(_ items: inout [ChatItem]) {
+        if case let .assistant(id, text, true)? = items.last {
+            items[items.count - 1] = .assistant(id: id, text: text, streaming: false)
+        }
+    }
+
+    private static func appendText(_ items: inout [ChatItem], id: String, delta: String) {
+        if case let .assistant(aid, text, true)? = items.last {
+            items[items.count - 1] = .assistant(id: aid, text: text + delta, streaming: true)
+        } else {
+            items.append(.assistant(id: id, text: delta, streaming: true))
+        }
+    }
+
+    private static func setResult(_ items: inout [ChatItem], toolUseId: String, ok: Bool, summary: String) {
+        if let idx = items.lastIndex(where: { if case let .tool(_, t, _, _, _) = $0 { t == toolUseId } else { false } }),
+           case let .tool(tid, t, name, s, _) = items[idx] {
+            items[idx] = .tool(id: tid, toolUseId: t, name: name, summary: s, result: ToolOutcome(ok: ok, summary: summary))
         }
     }
 }

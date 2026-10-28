@@ -253,16 +253,17 @@ sealed class SessionEvent {
     data class UserPrompt(val text: String) : SessionEvent()
 
     @Serializable @SerialName("agent.text")
-    data class AgentText(val delta: String) : SessionEvent()
+    /** [parentToolUseId] is set when a subagent said or did this: the id of the Task/Agent tool call that started it. */
+    data class AgentText(val delta: String, val parentToolUseId: String? = null) : SessionEvent()
 
     @Serializable @SerialName("agent.turn_end")
     data class TurnEnd(val stopReason: String) : SessionEvent()
 
     @Serializable @SerialName("agent.tool_call")
-    data class ToolCall(val toolUseId: String, val name: String, val summary: String) : SessionEvent()
+    data class ToolCall(val toolUseId: String, val name: String, val summary: String, val parentToolUseId: String? = null) : SessionEvent()
 
     @Serializable @SerialName("agent.tool_result")
-    data class ToolResult(val toolUseId: String, val ok: Boolean, val summary: String) : SessionEvent()
+    data class ToolResult(val toolUseId: String, val ok: Boolean, val summary: String, val parentToolUseId: String? = null) : SessionEvent()
 
     @Serializable @SerialName("approval.request")
     data class ApprovalRequest(

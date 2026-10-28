@@ -73,8 +73,8 @@ struct MainTabs: View {
             Tab("Home", systemImage: "laptopcomputer.and.iphone", value: 0) {
                 NavigationStack(path: $homePath) { HomeView() }
             }
-            Tab("Sessions", systemImage: "terminal", value: 1) {
-                NavigationStack { SessionsView() }
+            Tab("Agents", systemImage: "person.3", value: 1) {
+                NavigationStack { AgentsView() }
             }
             Tab("Cloud", systemImage: "cloud", value: 2) {
                 NavigationStack { CloudView() }
@@ -107,6 +107,7 @@ enum Route: Hashable {
     case credentials
     case newCloudSession
     case usage
+    case history
 }
 
 extension View {
@@ -122,6 +123,7 @@ extension View {
             case .credentials: CredentialsView()
             case .newCloudSession: NewCloudSessionView()
             case .usage: UsageView()
+            case .history: SessionsView()
             }
         }
     }

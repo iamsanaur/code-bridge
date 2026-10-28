@@ -238,7 +238,7 @@ struct SessionView: View {
             }
             InlineError(message: runner.error ?? inputError).padding(.horizontal)
             if s.mode.isChat {
-                ChatTranscriptView(items: st.chat, revision: st.revision, working: status == .running, onRetry: retryAction)
+                ChatTranscriptView(items: st.chat, revision: st.revision, subagents: st.subagents, working: status == .running, onRetry: retryAction)
                     .environment(\.imageSource, imageSource(for: s))
             } else {
                 TerminalOutputView(lines: st.terminal.allLines(), revision: st.revision, dropped: st.terminal.dropped)

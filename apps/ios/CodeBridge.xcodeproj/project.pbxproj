@@ -10,6 +10,7 @@
 		04339C4C4BCE7CC1238E4F70 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D521924B1407B3246EAF71 /* ChatView.swift */; };
 		05336A8B223D387FED2D7556 /* CodeBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 824F59F9F488CA9B21E4B419 /* CodeBridgeApp.swift */; };
 		0B2AE8CD6EF76FAF7839891B /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9663C2C0D1D74FB63E014C /* TerminalView.swift */; };
+		1066B36D546CF13986A35605 /* AgentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 271286480D58782D0717D08F /* AgentsView.swift */; };
 		194F63A5EAC6A10DE728AF3E /* ChatImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D3C1DD7F2C58BF117E987E /* ChatImage.swift */; };
 		207F21AB520119EF068026FC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C18958064A4AEC9387842DA6 /* Assets.xcassets */; };
 		295E1460D787C1BFA3D48050 /* QRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9304F278F70054308D12BE6D /* QRScanner.swift */; };
@@ -32,6 +33,7 @@
 		128F646E97D58FE07A8E9F93 /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Badges.swift; sourceTree = "<group>"; };
 		1AF46FA3C0860D1D84513467 /* ConnectionAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionAccessory.swift; sourceTree = "<group>"; };
 		23D521924B1407B3246EAF71 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		271286480D58782D0717D08F /* AgentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsView.swift; sourceTree = "<group>"; };
 		2E5AA05155D81D03B3F30496 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		4AE0FB880E6F97BA32FE3690 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		76919540371F0F850312B5D5 /* CodeBridge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CodeBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -114,6 +116,7 @@
 		A62B0E5FC9372DEED771ECD2 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				271286480D58782D0717D08F /* AgentsView.swift */,
 				0E11CCD0FD494F30EC8EEF61 /* CloudViews.swift */,
 				EC50E5134124634C5ABDF881 /* HomeView.swift */,
 				CE911638E1F9F896A0D2237B /* RootView.swift */,
@@ -195,6 +198,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1066B36D546CF13986A35605 /* AgentsView.swift in Sources */,
 				8297A5F249CB99690780E39A /* AppModel.swift in Sources */,
 				DAD1CC9A85D216BC312BE8D0 /* Badges.swift in Sources */,
 				194F63A5EAC6A10DE728AF3E /* ChatImage.swift in Sources */,

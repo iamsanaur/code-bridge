@@ -281,10 +281,11 @@ public enum SessionEvent: Equatable, Sendable {
     case status(SessionStatus, exitCode: Int?, message: String?)
     case output(stream: String, data: String)
     case userPrompt(String)
-    case agentText(String)
+    /// `parent` is set when a subagent said or did this: the id of the Task/Agent tool call that started it.
+    case agentText(String, parent: String? = nil)
     case turnEnd(stopReason: String)
-    case toolCall(toolUseId: String, name: String, summary: String)
-    case toolResult(toolUseId: String, ok: Bool, summary: String)
+    case toolCall(toolUseId: String, name: String, summary: String, parent: String? = nil)
+    case toolResult(toolUseId: String, ok: Bool, summary: String, parent: String? = nil)
     case approvalRequest(PendingApproval)
     case approvalResolved(approvalId: String, decision: String)
     case usage(Usage)
@@ -304,7 +305,7 @@ public struct PendingApproval: Codable, Equatable, Identifiable, Sendable {
 extension SessionEvent: Decodable {
     private enum K: String, CodingKey {
         case kind, status, exitCode, message, stream, data, text, delta, stopReason, toolUseId, name, summary, ok
-        case approvalId, decision, usage, code, retryable
+        case approvalId, decision, usage, code, retryable, parentToolUseId
     }
 
     struct UnknownKind: Error {}
@@ -316,12 +317,12 @@ extension SessionEvent: Decodable {
             self = .status(try c.decode(SessionStatus.self, forKey: .status), exitCode: try c.decodeIfPresent(Int.self, forKey: .exitCode), message: try c.decodeIfPresent(String.self, forKey: .message))
         case "output": self = .output(stream: try c.decode(String.self, forKey: .stream), data: try c.decode(String.self, forKey: .data))
         case "user.prompt": self = .userPrompt(try c.decode(String.self, forKey: .text))
-        case "agent.text": self = .agentText(try c.decode(String.self, forKey: .delta))
+        case "agent.text": self = .agentText(try c.decode(String.self, forKey: .delta), parent: try c.decodeIfPresent(String.self, forKey: .parentToolUseId))
         case "agent.turn_end": self = .turnEnd(stopReason: try c.decode(String.self, forKey: .stopReason))
         case "agent.tool_call":
-            self = .toolCall(toolUseId: try c.decode(String.self, forKey: .toolUseId), name: try c.decode(String.self, forKey: .name), summary: try c.decode(String.self, forKey: .summary))
+            self = .toolCall(toolUseId: try c.decode(String.self, forKey: .toolUseId), name: try c.decode(String.self, forKey: .name), summary: try c.decode(String.self, forKey: .summary), parent: try c.decodeIfPresent(String.self, forKey: .parentToolUseId))
         case "agent.tool_result":
-            self = .toolResult(toolUseId: try c.decode(String.self, forKey: .toolUseId), ok: try c.decode(Bool.self, forKey: .ok), summary: try c.decode(String.self, forKey: .summary))
+            self = .toolResult(toolUseId: try c.decode(String.self, forKey: .toolUseId), ok: try c.decode(Bool.self, forKey: .ok), summary: try c.decode(String.self, forKey: .summary), parent: try c.decodeIfPresent(String.self, forKey: .parentToolUseId))
         case "approval.request": self = .approvalRequest(try PendingApproval(from: decoder))
         case "approval.resolved": self = .approvalResolved(approvalId: try c.decode(String.self, forKey: .approvalId), decision: try c.decode(String.self, forKey: .decision))
         case "usage": self = .usage(try c.decode(Usage.self, forKey: .usage))

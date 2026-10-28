@@ -37,6 +37,10 @@ class SessionState {
     val terminal = TerminalBuffer(5000)
     private val _chat = mutableListOf<ChatItem>()
     val chat: List<ChatItem> get() = _chat
+    private val _subagents = HashMap<String, MutableList<ChatItem>>()
+
+    /** What each subagent said and did, by the id of the Task/Agent tool call that started it. */
+    val subagents: Map<String, List<ChatItem>> get() = _subagents
     private val _approvals = linkedMapOf<String, PendingApproval>()
     val approvals: Collection<PendingApproval> get() = _approvals.values
     private val pending = HashMap<Int, SequencedEvent>()
@@ -86,19 +90,17 @@ class SessionState {
                 closeStreaming()
                 _chat += ChatItem.UserMessage(id, e.text)
             }
-            is SessionEvent.AgentText -> {
-                val last = _chat.lastOrNull()
-                if (last is ChatItem.Assistant && last.streaming) _chat[_chat.lastIndex] = last.copy(text = last.text + e.delta)
-                else _chat += ChatItem.Assistant(id, e.delta, streaming = true)
-            }
-            is SessionEvent.TurnEnd -> closeStreaming()
+            is SessionEvent.AgentText -> appendText(listFor(e.parentToolUseId), id, e.delta)
+            is SessionEvent.TurnEnd -> closeStreaming(_chat)
             is SessionEvent.ToolCall -> {
-                closeStreaming()
-                _chat += ChatItem.Tool(id, e.toolUseId, e.name, e.summary)
+                val list = listFor(e.parentToolUseId)
+                closeStreaming(list)
+                list += ChatItem.Tool(id, e.toolUseId, e.name, e.summary)
             }
             is SessionEvent.ToolResult -> {
-                val idx = _chat.indexOfLast { it is ChatItem.Tool && it.toolUseId == e.toolUseId }
-                if (idx >= 0) _chat[idx] = (_chat[idx] as ChatItem.Tool).copy(result = ToolOutcome(e.ok, e.summary))
+                val list = listFor(e.parentToolUseId)
+                val idx = list.indexOfLast { it is ChatItem.Tool && it.toolUseId == e.toolUseId }
+                if (idx >= 0) list[idx] = (list[idx] as ChatItem.Tool).copy(result = ToolOutcome(e.ok, e.summary))
             }
             is SessionEvent.ApprovalRequest -> _approvals[e.approvalId] = PendingApproval(e.approvalId, e.toolName, e.title, e.detail, e.risk, e.expiresAt)
             is SessionEvent.ApprovalResolved -> {
@@ -114,8 +116,19 @@ class SessionState {
         }
     }
 
-    private fun closeStreaming() {
-        val last = _chat.lastOrNull()
-        if (last is ChatItem.Assistant && last.streaming) _chat[_chat.lastIndex] = last.copy(streaming = false)
+    private fun closeStreaming() = closeStreaming(_chat)
+
+    private fun closeStreaming(list: MutableList<ChatItem>) {
+        val last = list.lastOrNull()
+        if (last is ChatItem.Assistant && last.streaming) list[list.lastIndex] = last.copy(streaming = false)
+    }
+
+    /** The transcript an event belongs to: the main chat, or the subagent that produced it. */
+    private fun listFor(parent: String?): MutableList<ChatItem> = if (parent == null) _chat else _subagents.getOrPut(parent) { mutableListOf() }
+
+    private fun appendText(list: MutableList<ChatItem>, id: String, delta: String) {
+        val last = list.lastOrNull()
+        if (last is ChatItem.Assistant && last.streaming) list[list.lastIndex] = last.copy(text = last.text + delta)
+        else list += ChatItem.Assistant(id, delta, streaming = true)
     }
 }

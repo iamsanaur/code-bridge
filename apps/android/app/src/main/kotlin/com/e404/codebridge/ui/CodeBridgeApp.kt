@@ -10,7 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
@@ -52,6 +52,7 @@ import com.e404.codebridge.ui.screens.DevicesScreen
 import com.e404.codebridge.ui.screens.HomeScreen
 import com.e404.codebridge.ui.screens.NewCloudSessionScreen
 import com.e404.codebridge.ui.screens.AddFolderScreen
+import com.e404.codebridge.ui.screens.AgentsScreen
 import com.e404.codebridge.ui.screens.NewProjectScreen
 import com.e404.codebridge.ui.screens.NewSessionScreen
 import com.e404.codebridge.ui.screens.PairScreen
@@ -72,6 +73,7 @@ object Routes {
     const val REGISTER = "register"
     const val SETUP = "setup-relay"
     const val HOME = "home"
+    const val AGENTS = "agents"
     const val SESSIONS = "sessions"
     const val CLOUD = "cloud"
     const val SETTINGS = "settings"
@@ -102,7 +104,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val Tabs = listOf(
     Tab(Routes.HOME, "Home", Icons.Default.Home),
-    Tab(Routes.SESSIONS, "Sessions", Icons.Default.Terminal),
+    Tab(Routes.AGENTS, "Agents", Icons.Default.Groups),
     Tab(Routes.CLOUD, "Cloud", Icons.Default.Cloud),
     Tab(Routes.SETTINGS, "Settings", Icons.Default.Settings),
 )
@@ -160,6 +162,7 @@ fun CodeBridgeApp(
                     composable(Routes.SIGN_IN) { SignInScreen(nav, auth) }
                     composable(Routes.REGISTER) { RegisterScreen(nav, auth) }
                     composable(Routes.HOME) { HomeScreen(nav) }
+                    composable(Routes.AGENTS) { AgentsScreen(nav) }
                     composable(Routes.SESSIONS) { SessionsScreen(nav) }
                     composable(Routes.CLOUD) { CloudScreen(nav) }
                     composable(Routes.SETTINGS) { SettingsScreen(nav, auth) }
