@@ -26,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -260,6 +261,7 @@ fun DeviceScreen(nav: NavController, id: String) {
                         "Interactive shell" to if (c.allowInteractiveShell) "allowed" else "disabled",
                         "New projects from this phone" to if (c.canCreateWorkspaces == true) "allowed" else "disabled",
                         "Pick existing folders" to if (c.canBrowseFolders == true) "allowed" else "disabled",
+                        "Default project folder" to (c.projectsRoot ?: "~/CodeBridge"),
                     ).forEach { (k, v) -> Text("$k: $v", style = MaterialTheme.typography.bodySmall) }
                 }
             }
@@ -351,6 +353,11 @@ fun PairScreen(nav: NavController, initialCode: String?) {
 @Composable
 fun NewProjectScreen(nav: NavController, deviceId: String) {
     val api = LocalContainer.current.api
+    val device = rememberLoad(deviceId) { api.device(deviceId) }
+    // This screen's own back-stack entry, captured once: the folder picker hands the new default back through it.
+    val ownEntry = remember { nav.currentBackStackEntry }
+    val chosenRoot by (ownEntry?.savedStateHandle?.getStateFlow<String?>("projectsRoot", null)
+        ?: kotlinx.coroutines.flow.MutableStateFlow<String?>(null)).collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
     var gitInit by remember { mutableStateOf(true) }
     val action = rememberAction()
@@ -365,10 +372,16 @@ fun NewProjectScreen(nav: NavController, deviceId: String) {
     }
     ScreenScaffold("New project", nav) {
         Text(
-            "A new folder is created on your computer, inside its projects folder (~/CodeBridge by default). Existing folders are never touched.",
+            "A new folder is created on your computer, inside the default project folder below. Existing folders are never touched.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        val current = device.value
+        SectionHeader("Default project folder")
+        Text(chosenRoot ?: current?.capabilities?.projectsRoot ?: "~/CodeBridge", fontFamily = Mono, style = MaterialTheme.typography.bodyLarge)
+        if (current?.capabilities?.canBrowseFolders == true) {
+            OutlinedButton(onClick = { nav.navigate(Routes.defaultFolder(deviceId)) }, modifier = Modifier.fillMaxWidth()) { Text("Change default folder") }
+        }
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
@@ -397,16 +410,21 @@ fun NewProjectScreen(nav: NavController, deviceId: String) {
  * system folders), and the computer checks the choice again before adding it.
  */
 @Composable
-fun AddFolderScreen(nav: NavController, deviceId: String) {
+fun AddFolderScreen(nav: NavController, deviceId: String, chooseDefault: Boolean = false) {
     val api = LocalContainer.current.api
     var path by remember { mutableStateOf<String?>(null) }
     val listing = rememberLoad(deviceId, path) { api.browseFolders(deviceId, path) }
     val action = rememberAction()
-    ScreenScaffold("Add folder", nav) {
+    ScreenScaffold(if (chooseDefault) "Default folder" else "Add folder", nav) {
         LoadContent(listing) { l ->
             Text(l.displayPath, fontFamily = Mono, style = MaterialTheme.typography.bodyMedium)
             Text(
-                if (l.canAdd) "Choose “Use this folder” to work in it, or open a folder inside it." else "Open the folder that holds your project.",
+                when {
+                    chooseDefault && l.canAdd -> "New projects will be created inside this folder."
+                    chooseDefault -> "Open the folder where new projects should go, such as Projects."
+                    l.canAdd -> "Choose “Use this folder” to work in it, or open a folder inside it."
+                    else -> "Open the folder that holds your project."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -414,13 +432,19 @@ fun AddFolderScreen(nav: NavController, deviceId: String) {
             Button(
                 onClick = {
                     action.run {
-                        val result = api.addWorkspace(deviceId, l.path)
-                        nav.navigate(Routes.newSession(deviceId, result.workspace.id)) { popUpTo(Routes.ADD_FOLDER) { inclusive = true } }
+                        if (chooseDefault) {
+                            val result = api.setProjectsRoot(deviceId, l.path)
+                            nav.previousBackStackEntry?.savedStateHandle?.set("projectsRoot", result.projectsRoot)
+                            nav.popBackStack()
+                        } else {
+                            val result = api.addWorkspace(deviceId, l.path)
+                            nav.navigate(Routes.newSession(deviceId, result.workspace.id)) { popUpTo(Routes.ADD_FOLDER) { inclusive = true } }
+                        }
                     }
                 },
                 enabled = l.canAdd && !action.busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            ) { Text(if (action.busy) "Adding…" else "Use this folder") }
+            ) { Text(if (action.busy) "Saving…" else if (chooseDefault) "Set as default" else "Use this folder") }
             l.parentPath?.let { parent ->
                 OutlinedButton(onClick = { path = parent }, modifier = Modifier.fillMaxWidth()) { Text("Up one folder") }
             }

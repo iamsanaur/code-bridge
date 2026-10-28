@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { browseFolders, prepareExistingWorkspace } from '../src/folders.js';
+import { browseFolders, prepareExistingWorkspace, validateProjectsRoot } from '../src/folders.js';
 
 let home: string;
 const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
@@ -72,6 +72,15 @@ describe('prepareExistingWorkspace', () => {
   it('refuses the home folder itself and anything hidden or outside', async () => {
     for (const p of [home, path.join(home, '.ssh'), '/etc', '/', path.join(home, 'link-out')]) {
       await expect(prepareExistingWorkspace(p, [])).rejects.toThrow();
+    }
+  });
+});
+
+describe('validateProjectsRoot', () => {
+  it('accepts a visible folder inside home and refuses home, hidden and outside folders', async () => {
+    expect(await validateProjectsRoot(path.join(home, 'alpha'))).toBe(path.join(home, 'alpha'));
+    for (const p of [home, path.join(home, '.ssh'), path.join(home, 'Library'), '/etc', '/']) {
+      await expect(validateProjectsRoot(p)).rejects.toMatchObject({ code: 'path_denied' });
     }
   });
 });

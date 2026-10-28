@@ -234,6 +234,16 @@ class ApiClient(
             idem(),
         )
 
+    /** Chooses the folder new projects are created in. The computer re-checks it (inside home, nothing hidden). */
+    suspend fun setProjectsRoot(deviceId: String, path: String): SetProjectsRootResult =
+        request(
+            "PUT",
+            "/v1/devices/$deviceId/projects-root",
+            SetProjectsRootResult.serializer(),
+            encode(mapOf("path" to path)),
+            idem(),
+        )
+
     suspend fun signal(sessionId: String, terminate: Boolean) {
         request("POST", "/v1/sessions/$sessionId/signal", JsonObject.serializer(), encode(mapOf("signal" to if (terminate) "terminate" else "interrupt")), idem())
     }

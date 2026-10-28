@@ -175,6 +175,29 @@ describe('connecting with only the link', () => {
         });
         expect(r.status).toBeGreaterThanOrEqual(400);
       }
+      // Choose the default project folder from the phone; new projects then land there.
+      await mkdir(path.join(home, 'Work'), { recursive: true });
+      const chosen = await api<{ projectsRoot: string }>(
+        ctx,
+        'PUT',
+        `/v1/devices/${deviceId}/projects-root`,
+        { token, body: { path: path.join(home, 'Work') } },
+      );
+      expect(chosen.status).toBe(200);
+      expect(chosen.body.projectsRoot).toBe('~/Work');
+      const made = await api(ctx, 'POST', `/v1/devices/${deviceId}/workspaces`, {
+        token,
+        body: { name: 'lands-in-work' },
+      });
+      expect(made.status).toBe(200);
+      expect(existsSync(path.join(home, 'Work', 'lands-in-work', '.git'))).toBe(true);
+      for (const bad of [home, path.join(home, '.ssh'), '/etc']) {
+        const r = await api(ctx, 'PUT', `/v1/devices/${deviceId}/projects-root`, {
+          token,
+          body: { path: bad },
+        });
+        expect(r.status).toBeGreaterThanOrEqual(400);
+      }
       const outside = await api(
         ctx,
         'GET',

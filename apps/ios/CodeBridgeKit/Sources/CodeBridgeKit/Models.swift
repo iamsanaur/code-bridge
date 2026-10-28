@@ -95,6 +95,8 @@ public struct Capabilities: Codable, Equatable, Sendable {
     public var canCreateWorkspaces: Bool?
     /// The owner allows picking existing folders from the phone. Older agents don't send it.
     public var canBrowseFolders: Bool?
+    /// Where new projects are created, with the home folder shown as `~`. Older agents don't send it.
+    public var projectsRoot: String?
 }
 
 public struct WorkspaceInfo: Codable, Equatable, Identifiable, Sendable {
@@ -127,6 +129,10 @@ public struct BrowseFoldersResult: Codable, Equatable, Sendable {
     public var isGitRepo: Bool
     public var folders: [FolderEntry]
     public var truncated: Bool
+}
+
+public struct SetProjectsRootResult: Codable, Equatable, Sendable {
+    public var projectsRoot: String
 }
 
 public struct AddWorkspaceResult: Codable, Equatable, Sendable {

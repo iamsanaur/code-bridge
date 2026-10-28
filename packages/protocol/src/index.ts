@@ -234,8 +234,15 @@ export const addWorkspaceCommandSchema = z.object({
   path: z.string().min(1).max(2048),
 });
 
+/** Chooses the folder that new projects are created in. The folder must already exist and be browsable. */
+export const setProjectsRootCommandSchema = z.object({
+  op: z.literal('workspace.setProjectsRoot'),
+  path: z.string().min(1).max(2048),
+});
+
 export const agentCommandSchema = z.discriminatedUnion('op', [
   createWorkspaceCommandSchema,
+  setProjectsRootCommandSchema,
   browseFoldersCommandSchema,
   addWorkspaceCommandSchema,
   startSessionSchema,
@@ -305,6 +312,12 @@ export const browseFoldersResultSchema = z.object({
 });
 export type BrowseFoldersResult = z.infer<typeof browseFoldersResultSchema>;
 
+export const setProjectsRootResultSchema = z.object({
+  /** The new default project folder, with the home directory abbreviated to `~`. */
+  projectsRoot: z.string().max(2048),
+});
+export type SetProjectsRootResult = z.infer<typeof setProjectsRootResultSchema>;
+
 export const addWorkspaceResultSchema = z.object({ workspace: workspaceInfoSchema });
 export type AddWorkspaceResult = z.infer<typeof addWorkspaceResultSchema>;
 
@@ -326,6 +339,8 @@ export const agentCapabilitiesSchema = z.object({
   canCreateWorkspaces: z.boolean().default(false),
   /** The owner allows picking existing folders from the phone. */
   canBrowseFolders: z.boolean().default(false),
+  /** Where new projects are created, with the home directory shown as `~`. */
+  projectsRoot: z.string().max(2048).optional(),
 });
 export type AgentCapabilities = z.infer<typeof agentCapabilitiesSchema>;
 

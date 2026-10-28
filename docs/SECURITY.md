@@ -68,7 +68,7 @@ Please report vulnerabilities privately to the repository owner rather than in p
 
 Workspaces were originally add-on-the-computer-only. The phone can now start a new project, under tight limits:
 
-- The command carries **only a name** (`workspace.create`). The location is never supplied by the phone: the agent creates the folder directly inside its own projects folder (`policy.projectsRoot`, default `~/CodeBridge`).
+- The command carries **only a name** (`workspace.create`). The phone does not supply a location for the new folder: the agent creates it directly inside its own projects folder (`policy.projectsRoot`, default `~/CodeBridge`). The phone can change _which_ folder that is only through the default-folder setting described below.
 - Names are validated by the shared schema and again on the computer (letters, numbers, spaces, `.`, `-`, `_`; no `..`, no separators, no leading dot, 64 characters, Windows reserved names refused).
 - The folder is created with a non-recursive `mkdir`, so an existing folder, file or symlink is **never adopted**; the real path is re-checked to be a plain directory inside the real projects folder.
 - It cannot widen access to existing data. At most 100 workspaces; the owner can turn it off (`allowWorkspaceCreation false`), and the agent advertises the setting so the app hides the button.
@@ -92,3 +92,7 @@ Headless Claude Code has no way to ask a person for permission, so by default it
 - It is **not** `--dangerously-skip-permissions`, which CodeBridge never passes. Claude Code keeps its own limits: edits stay inside the project folder, and shell commands outside its safe list are still declined.
 - The folder is the one you registered, so the Folders limits above decide what it can reach.
 - `codebridge-agent policy set allowClaudeCodeEdits false` makes Claude Code read-only again.
+
+## Choosing the default project folder from the phone
+
+`workspace.setProjectsRoot` lets the phone pick the folder that new projects are created in (the app's **Change default folder**). It follows the same rules as browsing: the folder must already exist, sit inside the home directory, not be hidden or an app-data folder, and not be the home folder itself. The agent resolves it through symlinks and re-checks it. It needs **both** `allowWorkspaceCreation` and `allowFolderBrowse`, and the choice is saved as `policy.projectsRoot`. Creating a project is still a non-recursive `mkdir` of a new, visible, validated name, so an existing folder is never adopted. The change is audited (`workspace.set_projects_root`). You can also set it on the computer: `codebridge-agent policy set projectsRoot <dir>`.

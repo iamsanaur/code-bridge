@@ -4,9 +4,9 @@ import type { AgentConfig, Workspace } from '../config.js';
 import { AgentSession, sdkMessagesClient, type MessagesClient } from '../coding/agentSession.js';
 import { ClaudeCodeSession, findClaudeCli } from '../coding/claudeCodeSession.js';
 import { gitDiff, gitStatus } from '../git.js';
-import { createProject, ProjectError } from '../projects.js';
-import { browseFolders, prepareExistingWorkspace } from '../folders.js';
-import { PathError, prepareWorkspace, workspaceInfo } from '../workspaces.js';
+import { createProject, ProjectError, projectsRoot } from '../projects.js';
+import { browseFolders, prepareExistingWorkspace, validateProjectsRoot } from '../folders.js';
+import { abbreviateHome, PathError, prepareWorkspace, workspaceInfo } from '../workspaces.js';
 import type { Logger } from '../log.js';
 import { buildChildEnv, classifyCommand, resolveExecutable } from '../policy.js';
 import { defaultShell } from '../platform.js';
@@ -25,6 +25,8 @@ export interface ManagerDeps {
   getConfig: () => AgentConfig;
   /** Persists a workspace created from the phone. */
   addWorkspace?: (ws: Workspace) => Promise<void>;
+  /** Persists the folder new projects are created in. */
+  setProjectsRoot?: (dir: string) => Promise<void>;
   secrets: SecretStore;
   /** Delivers a sequenced event towards the relay. */
   sink: (ev: SequencedEvent) => void;
@@ -150,6 +152,8 @@ export class SessionManager {
       }
       case 'workspace.create':
         return this.createWorkspace(c);
+      case 'workspace.setProjectsRoot':
+        return this.setProjectsRoot(c);
       case 'workspace.browse':
         return this.browse(c);
       case 'workspace.add':
@@ -182,6 +186,30 @@ export class SessionManager {
         'Picking existing folders from the phone is turned off on this computer. Turn it on with `codebridge-agent policy set allowFolderBrowse true`.',
       );
     return config;
+  }
+
+  private async setProjectsRoot(c: Extract<AgentCommand, { op: 'workspace.setProjectsRoot' }>) {
+    const config = this.deps.getConfig();
+    if (
+      !config.policy.allowWorkspaceCreation ||
+      !config.policy.allowFolderBrowse ||
+      !this.deps.setProjectsRoot
+    )
+      throw new SessionError(
+        'policy_denied',
+        'Choosing the default project folder from the phone is turned off on this computer (it needs allowWorkspaceCreation and allowFolderBrowse).',
+      );
+    try {
+      const dir = await validateProjectsRoot(c.path);
+      await this.deps.setProjectsRoot(dir);
+      this.deps.log.info('default project folder changed from the phone', {
+        folder: abbreviateHome(dir),
+      });
+      return { projectsRoot: abbreviateHome(dir) };
+    } catch (err) {
+      if (err instanceof PathError) throw new SessionError('path_denied', err.message);
+      throw err;
+    }
   }
 
   private async browse(c: Extract<AgentCommand, { op: 'workspace.browse' }>) {
@@ -375,6 +403,7 @@ export class SessionManager {
       allowInteractiveShell: policy.allowInteractiveShell,
       canCreateWorkspaces: policy.allowWorkspaceCreation,
       canBrowseFolders: policy.allowFolderBrowse,
+      projectsRoot: abbreviateHome(projectsRoot(policy)),
       claudeCodeAvailable: policy.allowClaudeCode && findClaudeCli(policy) !== null,
     };
   }

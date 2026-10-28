@@ -104,3 +104,14 @@ export async function prepareExistingWorkspace(
   if (found) return { ws: found, added: false };
   return { ws: await prepareWorkspace(real), added: true };
 }
+
+/**
+ * Validates a folder the phone chose as the default place for new projects: it must exist and follow the browsing
+ * rules (inside the home directory, nothing hidden or app-data), and may not be the home directory itself.
+ */
+export async function validateProjectsRoot(requested: string): Promise<string> {
+  const { real, segments } = await resolveBrowsable(requested);
+  if (segments.length === 0)
+    throw new PathError('Pick a folder inside your home folder, such as Projects');
+  return real;
+}

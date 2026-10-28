@@ -244,6 +244,11 @@ public actor APIClient {
         try await request("POST", "/v1/devices/\(deviceId)/workspaces/add", body: ["path": path], headers: idem())
     }
 
+    /// Chooses the folder new projects are created in. The computer re-checks it (inside home, nothing hidden).
+    public func setProjectsRoot(deviceId: String, path: String) async throws -> SetProjectsRootResult {
+        try await request("PUT", "/v1/devices/\(deviceId)/projects-root", body: ["path": path], headers: idem())
+    }
+
     public func signal(_ id: String, terminate: Bool) async throws {
         try await send("POST", "/v1/sessions/\(id)/signal", body: ["signal": terminate ? "terminate" : "interrupt"], idempotent: true)
     }

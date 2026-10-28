@@ -18,6 +18,7 @@ export type AuditAction =
   | 'pairing.complete'
   | 'workspace.create'
   | 'workspace.add'
+  | 'workspace.set_projects_root'
   | 'device.rename'
   | 'device.revoke'
   | 'device.rotate_secret'

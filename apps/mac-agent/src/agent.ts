@@ -49,6 +49,12 @@ export class AgentRuntime {
         });
         this.connection.send(this.hello()); // tell the relay straight away, not on the next config poll
       },
+      setProjectsRoot: async (dir) => {
+        this.config = await this.o.store.update((c) => {
+          c.policy.projectsRoot = dir;
+        });
+        this.connection.send(this.hello());
+      },
       secrets: this.o.secrets,
       sink: (ev) => this.connection.sendEvent(ev),
       log: this.o.log,

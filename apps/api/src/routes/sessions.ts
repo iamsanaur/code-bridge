@@ -8,6 +8,8 @@ import {
   addWorkspaceResultSchema,
   browseFoldersResultSchema,
   createWorkspaceResultSchema,
+  setProjectsRootCommandSchema,
+  setProjectsRootResultSchema,
   gitStatusResultSchema,
   idSchema,
   isTerminalStatus,
@@ -363,6 +365,27 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       }),
     );
     return addWorkspaceResultSchema.parse(result);
+  });
+
+  /** Chooses where new projects are created on the computer. The computer re-checks the folder. */
+  app.put('/v1/devices/:deviceId/projects-root', auth, async (req) => {
+    const { deviceId } = z.object({ deviceId: uuidSchema }).parse(req.params);
+    const body = setProjectsRootCommandSchema.omit({ op: true }).parse(req.body);
+    const dev = await loadDevice(deviceId, req.auth!.userId);
+    await audit(db, {
+      action: 'workspace.set_projects_root',
+      userId: req.auth!.userId,
+      deviceId,
+      ip: req.ip,
+      metadata: { path: body.path.slice(0, 200) },
+    });
+    const result = assertAck(
+      await relay.dispatchIdempotent(req.auth!.userId, dev.id, idempotencyKey(req), {
+        op: 'workspace.setProjectsRoot',
+        path: body.path,
+      }),
+    );
+    return setProjectsRootResultSchema.parse(result);
   });
 
   app.get('/v1/devices/:deviceId/workspaces/:workspaceId/git/status', auth, async (req) => {

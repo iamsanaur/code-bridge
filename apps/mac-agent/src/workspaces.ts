@@ -92,19 +92,20 @@ export async function prepareWorkspace(
   };
 }
 
-export function workspaceInfo(ws: Workspace): WorkspaceInfo {
+/** `/Users/me/code/app` -> `~/code/app`; paths outside the home directory are unchanged. */
+export function abbreviateHome(p: string): string {
   const home = os.homedir();
-  const displayPath =
-    same(ws.path, home) ||
-    (isWindows ? ws.path.toLowerCase() : ws.path).startsWith(
-      (isWindows ? home.toLowerCase() : home) + path.sep,
-    )
-      ? `~${ws.path.slice(home.length)}`
-      : ws.path;
+  return same(p, home) ||
+    (isWindows ? p.toLowerCase() : p).startsWith((isWindows ? home.toLowerCase() : home) + path.sep)
+    ? `~${p.slice(home.length)}`
+    : p;
+}
+
+export function workspaceInfo(ws: Workspace): WorkspaceInfo {
   return {
     id: ws.id,
     name: ws.name,
-    displayPath,
+    displayPath: abbreviateHome(ws.path),
     isGitRepo: existsSync(path.join(ws.path, '.git')),
   };
 }

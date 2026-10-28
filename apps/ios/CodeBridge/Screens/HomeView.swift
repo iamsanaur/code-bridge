@@ -266,6 +266,7 @@ struct DeviceView: View {
                         LabeledContent("Interactive shell", value: c.allowInteractiveShell ? "Allowed" : "Disabled")
                         LabeledContent("New projects from this phone", value: c.canCreateWorkspaces == true ? "Allowed" : "Disabled")
                         LabeledContent("Pick existing folders", value: c.canBrowseFolders == true ? "Allowed" : "Disabled")
+                        if let root = c.projectsRoot { LabeledContent("Default project folder", value: root) }
                     } else {
                         Text("The Mac hasn’t connected yet.").font(.footnote)
                     }
@@ -416,6 +417,8 @@ struct NewProjectView: View {
     @State private var name = ""
     @State private var gitInit = true
     @State private var runner = ActionRunner()
+    @State private var root: String?
+    @State private var choosingRoot = false
     @FocusState private var focused: Bool
 
     private var problem: String? { projectNameError(name) }
@@ -432,8 +435,15 @@ struct NewProjectView: View {
                     .onSubmit { create() }
                 if let problem { Label(problem, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(Palette.danger) }
             } footer: {
-                Text("A new folder is created on \(device.name), inside its projects folder (~/CodeBridge by default). Existing folders are never touched.")
+                Text("A new folder is created on \(device.name), inside the default project folder below. Existing folders are never touched.")
             }
+            Section {
+                LabeledContent("Create in", value: root ?? device.capabilities?.projectsRoot ?? "~/CodeBridge")
+                    .font(.code)
+                if device.capabilities?.canBrowseFolders == true {
+                    Button("Change default folder") { choosingRoot = true }
+                }
+            } header: { Text("Default project folder") }
             Section {
                 Toggle("Start a git repository", isOn: $gitInit)
             }
@@ -448,6 +458,15 @@ struct NewProjectView: View {
             }
         }
         .onAppear { focused = true }
+        .sheet(isPresented: $choosingRoot) {
+            NavigationStack {
+                FolderPickerView(device: device, purpose: .defaultFolder, onAdded: { _ in }, onChosenDefault: { path in
+                    root = path
+                    choosingRoot = false
+                })
+            }
+            .presentationDetents([.large])
+        }
     }
 
     private func create() {
@@ -463,8 +482,13 @@ struct NewProjectView: View {
 /// Pick a folder that already exists on the computer. Only folders inside its home directory are shown (no hidden
 /// or system folders), and the computer checks the choice again before adding it.
 struct FolderPickerView: View {
+    enum Purpose { case addProject, defaultFolder }
+
     let device: Device
+    var purpose: Purpose = .addProject
     let onAdded: (WorkspaceInfo) -> Void
+    /// Called instead of `onAdded` when choosing the default folder, with the new `~/…` path.
+    var onChosenDefault: (String) -> Void = { _ in }
     /// Where to start; the home folder when nil.
     var startPath: String?
     @Environment(AppModel.self) private var app
@@ -481,7 +505,9 @@ struct FolderPickerView: View {
                     Label(listing.displayPath, systemImage: listing.isGitRepo ? "arrow.triangle.branch" : "folder")
                         .font(.code)
                 } footer: {
-                    Text(listing.canAdd ? "Tap “Use this folder” to work in it, or open a folder inside it." : "Open the folder that holds your project.")
+                    Text(purpose == .defaultFolder
+                         ? (listing.canAdd ? "New projects will be created inside this folder." : "Open the folder where new projects should go, such as Projects.")
+                         : (listing.canAdd ? "Tap “Use this folder” to work in it, or open a folder inside it." : "Open the folder that holds your project."))
                 }
                 if let parent = listing.parentPath {
                     Button { load(parent) } label: { Label("Up one folder", systemImage: "arrow.up.left") }
@@ -507,12 +533,12 @@ struct FolderPickerView: View {
             }
             if listing != nil { Section { InlineError(message: runner.error) } }
         }
-        .navigationTitle("Add folder")
+        .navigationTitle(purpose == .defaultFolder ? "Default folder" : "Add folder")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Use this folder") { add() }
+                Button(purpose == .defaultFolder ? "Set as default" : "Use this folder") { add() }
                     .disabled(listing?.canAdd != true || runner.busy)
             }
         }
@@ -536,9 +562,16 @@ struct FolderPickerView: View {
 
     private func add() {
         guard let path = listing?.path else { return }
+        let purpose = purpose
         runner.run {
-            let result = try await app.api.addWorkspace(deviceId: device.id, path: path)
-            onAdded(result.workspace)
+            switch purpose {
+            case .addProject:
+                let result = try await app.api.addWorkspace(deviceId: device.id, path: path)
+                onAdded(result.workspace)
+            case .defaultFolder:
+                let result = try await app.api.setProjectsRoot(deviceId: device.id, path: path)
+                onChosenDefault(result.projectsRoot)
+            }
         }
     }
 }
