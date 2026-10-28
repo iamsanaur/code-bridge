@@ -96,3 +96,12 @@ Headless Claude Code has no way to ask a person for permission, so by default it
 ## Choosing the default project folder from the phone
 
 `workspace.setProjectsRoot` lets the phone pick the folder that new projects are created in (the app's **Change default folder**). It follows the same rules as browsing: the folder must already exist, sit inside the home directory, not be hidden or an app-data folder, and not be the home folder itself. The agent resolves it through symlinks and re-checks it. It needs **both** `allowWorkspaceCreation` and `allowFolderBrowse`, and the choice is saved as `policy.projectsRoot`. Creating a project is still a non-recursive `mkdir` of a new, visible, validated name, so an existing folder is never adopted. The change is audited (`workspace.set_projects_root`). You can also set it on the computer: `codebridge-agent policy set projectsRoot <dir>`.
+
+## Approving Claude Code's commands from the phone
+
+Headless Claude Code cannot ask anyone for permission, so anything outside its safe list (running a build script, `npm install`, a one-off `node -e`, fetching a page) used to be declined. With `allowClaudeCodeApprovals` (on by default) the agent starts `claude` with `--permission-prompt-tool`, and the request appears on the phone as an **Approve / Reject** card showing the exact command. Nothing runs until you tap Approve; no answer for 10 minutes counts as Reject.
+
+- **How it is wired.** The agent opens a loopback-only HTTP endpoint (`127.0.0.1`, random port, random per-session token compared in constant time). The `claude` CLI starts the agent's own `mcp-permission` helper, which forwards each request to that endpoint. If the helper cannot reach the agent, the answer is **deny**.
+- **Never-allowed programs are refused without asking.** `sudo`, `su`, `dd`, `shutdown`, `launchctl`, `diskutil` and the rest of the deny list are refused even inside a chain (`ls && sudo reboot`). Commands that can delete or send data (`rm`, `curl`, `git push`, …) are marked **high risk**. Secrets in the command text are redacted before it is shown.
+- **Approve means this one call.** There is no "always allow". Each new command asks again.
+- **Scope.** An approved command runs on your computer as your user, in the project folder, like anything you would type there, so only approve what you recognise. `codebridge-agent policy set allowClaudeCodeApprovals false` goes back to declining everything outside Claude Code's safe list.

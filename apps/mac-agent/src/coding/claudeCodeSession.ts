@@ -11,6 +11,7 @@ import {
   prepareClaudeSpawn,
 } from '../platform.js';
 import { BaseSession, SessionError, type EventSink } from '../sessions/base.js';
+import { assessToolRequest, PermissionBridge, type PermissionVerdict } from './permissions.js';
 
 /**
  * LocalClaudeCodeProvider: drives the user's installed Claude Code CLI in its
@@ -58,6 +59,8 @@ export class ClaudeCodeSession extends BaseSession {
   private cliSessionId: string | null = null;
   private model = 'claude-code';
   private ended = false;
+  private bridge: PermissionBridge | null = null;
+  private launching = false;
 
   constructor(
     id: string,
@@ -77,13 +80,55 @@ export class ClaudeCodeSession extends BaseSession {
     if (this.initialPrompt) this.prompt(this.initialPrompt);
   }
 
+  /** Puts one of Claude Code's permission requests to the phone and returns its answer. */
+  private async askPhone(
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Promise<PermissionVerdict> {
+    const assessed = assessToolRequest(toolName, input);
+    if ('deny' in assessed) return { behavior: 'deny', message: assessed.deny };
+    const decision = await this.approvals.request(assessed.ask);
+    return decision === 'approved'
+      ? { behavior: 'allow', updatedInput: input }
+      : {
+          behavior: 'deny',
+          message:
+            decision === 'rejected'
+              ? 'The user rejected this on their phone. Do not retry it; ask what they want instead.'
+              : 'The user did not answer in time. Do not retry it.',
+        };
+  }
+
   override prompt(text: string): void {
     if (this.ended) throw new SessionError('session_ended', 'This session has ended');
-    if (this.child)
+    if (this.child || this.launching)
       throw new SessionError('busy', 'Claude Code is still working on the previous prompt');
     this.emit({ kind: 'user.prompt', text });
+    this.launching = true;
+    this.setStatus('running');
+    void this.launch(text).finally(() => {
+      this.launching = false;
+    });
+  }
+
+  private async launch(text: string): Promise<void> {
     const args = ['-p', text, '--output-format', 'stream-json', '--verbose'];
     if (this.config.policy.allowClaudeCodeEdits) args.push('--permission-mode', 'acceptEdits');
+    if (this.config.policy.allowClaudeCodeApprovals) {
+      try {
+        this.bridge ??= new PermissionBridge((tool, input) => this.askPhone(tool, input));
+        await this.bridge.start();
+        args.push(
+          '--mcp-config',
+          this.bridge.mcpConfig(process.argv[1] ?? ''),
+          '--permission-prompt-tool',
+          'mcp__codebridge__approve',
+        );
+      } catch {
+        // Without the bridge Claude Code still runs; it just declines what it would have asked about.
+      }
+    }
+    if (this.ended) return;
     if (this.cliSessionId) args.push('--resume', this.cliSessionId);
     let target;
     try {
@@ -95,6 +140,7 @@ export class ClaudeCodeSession extends BaseSession {
         message: (err as Error).message,
         retryable: false,
       });
+      this.setStatus('idle');
       return;
     }
     const child = spawn(target.file, target.args, {
@@ -104,7 +150,6 @@ export class ClaudeCodeSession extends BaseSession {
       ...platformSpawnOptions(),
     });
     this.child = child;
-    this.setStatus('running');
     const rl = createInterface({ input: child.stdout! });
     rl.on('line', (line) => this.handleLine(line));
     let stderr = '';
@@ -210,12 +255,16 @@ export class ClaudeCodeSession extends BaseSession {
   signal(kind: 'interrupt' | 'terminate'): void {
     if (kind === 'interrupt') return this.kill('SIGINT');
     this.ended = true;
+    this.approvals.cancelAll();
+    this.bridge?.close();
     this.kill('SIGTERM');
     this.setStatus('completed', { message: 'Session ended' });
   }
 
   dispose(): void {
     this.ended = true;
+    this.approvals.cancelAll();
+    this.bridge?.close();
     this.kill('SIGKILL');
     this.setStatus('killed');
   }

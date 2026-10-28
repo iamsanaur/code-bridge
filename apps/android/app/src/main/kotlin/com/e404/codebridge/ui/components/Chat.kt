@@ -29,6 +29,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
+import dev.codebridge.core.MessageBlocks
 import dev.codebridge.core.ToolDisplay
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
@@ -159,8 +160,22 @@ private fun ChatRow(item: ChatItem, startsRun: Boolean, onRetry: (() -> Unit)?) 
         }
         is ChatItem.Assistant -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (startsRun) ClaudeHeader()
+            val blocks = remember(item.text) { MessageBlocks.split(item.text) }
             SelectionContainer {
-                Text(inlineMarkdown(item.text, MaterialTheme.colorScheme.onSurface) + AnnotatedString(if (item.streaming) " ▍" else ""), style = MaterialTheme.typography.bodyLarge)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    blocks.forEachIndexed { index, block ->
+                        if (block.code) {
+                            Text(
+                                block.text,
+                                fontFamily = Mono, fontSize = 13.sp,
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).padding(10.dp),
+                            )
+                        } else {
+                            val cursor = if (item.streaming && index == blocks.lastIndex) " ▍" else ""
+                            Text(inlineMarkdown(block.text, MaterialTheme.colorScheme.onSurface) + AnnotatedString(cursor), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
             }
         }
         is ChatItem.Tool -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -223,3 +223,17 @@ class ToolDisplayTest {
         kotlin.test.assertNull(ToolDisplay.diff("""{"file_path":"/a.ts","old_string":"truncat"""))
     }
 }
+
+class MessageBlocksTest {
+    @kotlin.test.Test fun splitsProseAndCode() {
+        val b = MessageBlocks.split("Run it:\n```sh\ncd app\n./build.sh\n```\nThen look.")
+        kotlin.test.assertEquals(listOf(false, true, false), b.map { it.code })
+        kotlin.test.assertEquals("cd app\n./build.sh", b[1].text)
+    }
+
+    @kotlin.test.Test fun anOpenFenceIsCodeToTheEnd() {
+        val b = MessageBlocks.split("a\n```\nx = 1")
+        kotlin.test.assertEquals(listOf(false, true), b.map { it.code })
+        kotlin.test.assertEquals(1, MessageBlocks.split("no code here").size)
+    }
+}

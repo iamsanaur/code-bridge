@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import { AgentSession, type MessagesClient } from '../src/coding/agentSession.js';
 import { ClaudeCodeSession } from '../src/coding/claudeCodeSession.js';
+import type { AgentConfig } from '../src/config.js';
 import { EventLog, tempWorkspace, testConfig } from './helpers.js';
 
 /**
@@ -334,32 +335,41 @@ describe('ClaudeCodeSession stream-json parsing (mocked CLI output)', () => {
 });
 
 describe.skipIf(process.platform === 'win32')('ClaudeCodeSession permission mode', () => {
-  const echoArgs = async (overrides: { allowClaudeCodeEdits: boolean }) => {
+  const runFake = async (overrides: Partial<AgentConfig['policy']>) => {
     const ws = await tempWorkspace();
     const cli = path.join(ws.path, 'fake-claude.sh');
-    await writeFile(
-      cli,
-      '#!/bin/sh\nprintf \'{"type":"assistant","message":{"content":[{"type":"text","text":"%s"}]}}\\n\' "$*"\n',
-    );
+    const argsFile = path.join(ws.path, 'args.txt');
+    await writeFile(cli, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\n`);
     await chmod(cli, 0o755);
     const log = new EventLog();
     const s = new ClaudeCodeSession(randomUUID(), ws, log.sink, testConfig(ws, overrides), cli);
     s.prompt('hello');
     for (let i = 0; i < 100 && !log.events.some((e) => e.event.kind === 'agent.turn_end'); i++)
       await new Promise((r) => setTimeout(r, 50));
-    return log.events
-      .map((e) => e.event)
-      .flatMap((e) => (e.kind === 'agent.text' ? [e.delta] : []))
-      .join('');
+    s.dispose();
+    return (await readFile(argsFile, 'utf8')).split('\n');
   };
 
   it('lets Claude Code edit files in the project by default, never skipping all permissions', async () => {
-    const args = await echoArgs({ allowClaudeCodeEdits: true });
-    expect(args).toContain('--permission-mode acceptEdits');
-    expect(args).not.toContain('dangerously');
+    const args = await runFake({ allowClaudeCodeEdits: true });
+    expect(args).toContain('acceptEdits');
+    expect(args.join(' ')).not.toContain('dangerously');
   });
 
-  it('stays read-only when the owner turns edits off', async () => {
-    expect(await echoArgs({ allowClaudeCodeEdits: false })).not.toContain('--permission-mode');
+  it('asks the phone about anything else through the permission prompt tool', async () => {
+    const args = await runFake({});
+    expect(args).toContain('--permission-prompt-tool');
+    expect(args).toContain('mcp__codebridge__approve');
+    const config = JSON.parse(args[args.indexOf('--mcp-config') + 1]!);
+    expect(config.mcpServers.codebridge.args).toContain('mcp-permission');
+    expect(config.mcpServers.codebridge.env.CODEBRIDGE_PERMISSION_URL).toMatch(
+      /^http:\/\/127\.0\.0\.1:\d+\/decide$/,
+    );
+  });
+
+  it('stays read-only and asks nothing when the owner turns both off', async () => {
+    const args = await runFake({ allowClaudeCodeEdits: false, allowClaudeCodeApprovals: false });
+    expect(args).not.toContain('--permission-mode');
+    expect(args).not.toContain('--permission-prompt-tool');
   });
 });

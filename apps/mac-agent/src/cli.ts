@@ -14,6 +14,7 @@ import { installAutostart, uninstallAutostart } from './service.js';
 import { createLogger } from './log.js';
 import { projectsRoot } from './projects.js';
 import { pair } from './pair.js';
+import { runPermissionMcp } from './permissionMcp.js';
 import { createSecretStore } from './secrets.js';
 import { AGENT_VERSION } from './version.js';
 import { prepareWorkspace, workspaceInfo } from './workspaces.js';
@@ -30,7 +31,7 @@ Usage:
   codebridge-agent workspace remove <id>
   codebridge-agent credentials set           Store an Anthropic API key in the system credential store (for the coding agent)
   codebridge-agent credentials status|clear
-  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowClaudeCodeEdits|allowWorkspaceCreation|allowFolderBrowse> <true|false>
+  codebridge-agent policy set <allowCustomCommands|allowInteractiveShell|allowClaudeCode|allowClaudeCodeEdits|allowClaudeCodeApprovals|allowWorkspaceCreation|allowFolderBrowse> <true|false>
   codebridge-agent policy set projectsRoot <dir>   Where projects created from the phone live (default ~/CodeBridge)
   codebridge-agent service install|uninstall Start at login (LaunchAgent on macOS, scheduled task on Windows)
   codebridge-agent unpair                    Revoke this Mac and delete its credential
@@ -101,6 +102,8 @@ function loginShellPath(): string | undefined {
 
 async function main(argv: string[]): Promise<number> {
   const [cmd, sub, ...rest] = argv;
+  // Started by the `claude` CLI for Claude Code sessions (see coding/permissions.ts); speaks MCP on stdio.
+  if (cmd === 'mcp-permission') return runPermissionMcp();
   if (process.getuid?.() === 0 && cmd !== undefined && cmd !== 'help') {
     console.error('Refusing to run as root. CodeBridge runs under your normal user account.');
     return 1;
@@ -255,6 +258,7 @@ async function main(argv: string[]): Promise<number> {
           'allowInteractiveShell',
           'allowClaudeCode',
           'allowClaudeCodeEdits',
+          'allowClaudeCodeApprovals',
           'allowWorkspaceCreation',
           'allowFolderBrowse',
         ] as const;
@@ -271,6 +275,7 @@ async function main(argv: string[]): Promise<number> {
           value === 'true' &&
           key !== 'allowClaudeCode' &&
           key !== 'allowClaudeCodeEdits' &&
+          key !== 'allowClaudeCodeApprovals' &&
           key !== 'allowWorkspaceCreation' &&
           key !== 'allowFolderBrowse'
         ) {
@@ -345,6 +350,7 @@ function printPolicy(c: AgentConfig) {
   console.log(`  allowInteractiveShell: ${c.policy.allowInteractiveShell}`);
   console.log(`  allowClaudeCode:       ${c.policy.allowClaudeCode}`);
   console.log(`  allowClaudeCodeEdits:  ${c.policy.allowClaudeCodeEdits}`);
+  console.log(`  allowClaudeCodeApprovals: ${c.policy.allowClaudeCodeApprovals}`);
   console.log(`  allowWorkspaceCreation: ${c.policy.allowWorkspaceCreation}`);
   console.log(`  allowFolderBrowse:     ${c.policy.allowFolderBrowse}`);
   console.log(`  projectsRoot:          ${projectsRoot(c.policy)}`);

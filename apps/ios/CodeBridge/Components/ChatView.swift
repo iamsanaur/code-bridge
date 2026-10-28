@@ -53,10 +53,22 @@ struct ChatTranscriptView: View {
         case let .assistant(_, text, streaming):
             VStack(alignment: .leading, spacing: 8) {
                 if startsRun { ClaudeHeader() }
-                Text(markdown(text) + (streaming ? AttributedString(" ▍") : AttributedString()))
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                let blocks = MessageBlocks.split(text)
+                ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+                    if block.code {
+                        Text(block.text)
+                            .font(.system(size: 13, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
+                    } else {
+                        Text(markdown(block.text) + (streaming && index == blocks.count - 1 ? AttributedString(" ▍") : AttributedString()))
+                            .font(.body)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
         case let .tool(_, _, name, summary, result):
             VStack(alignment: .leading, spacing: 8) {

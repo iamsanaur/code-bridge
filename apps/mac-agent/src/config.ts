@@ -59,6 +59,12 @@ export const configSchema = z.object({
        */
       allowClaudeCodeEdits: z.boolean().default(true),
       /**
+       * When Claude Code needs permission for something else (running a command, fetching a page), ask on the phone
+       * with Approve / Reject instead of declining. Programs that are never allowed (sudo, dd, shutdown, …) are
+       * refused without asking.
+       */
+      allowClaudeCodeApprovals: z.boolean().default(true),
+      /**
        * Allow the phone to create a NEW project folder (name only, never a path) inside `projectsRoot`. It cannot
        * reach any existing folder this way, so it does not widen what the phone can access.
        */
@@ -89,6 +95,7 @@ export const configSchema = z.object({
       allowInteractiveShell: false,
       allowClaudeCode: true,
       allowClaudeCodeEdits: true,
+      allowClaudeCodeApprovals: true,
       allowWorkspaceCreation: true,
       allowFolderBrowse: true,
       presets: DEFAULT_PRESETS,

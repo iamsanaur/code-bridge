@@ -32,3 +32,19 @@ import Testing
         #expect(ToolDisplay.diff(name: "Edit", summary: #"{"file_path":"/a.ts","old_string":"truncat"#) == nil)
     }
 }
+
+@Suite struct MessageBlocksTests {
+    @Test func splitsProseAndCode() {
+        let text = "Run it:\n```sh\ncd app\n./build.sh\n```\nThen look."
+        #expect(MessageBlocks.split(text) == [
+            .init(code: false, text: "Run it:"),
+            .init(code: true, text: "cd app\n./build.sh"),
+            .init(code: false, text: "Then look."),
+        ])
+    }
+
+    @Test func anOpenFenceIsCodeToTheEnd() {
+        #expect(MessageBlocks.split("a\n```\nx = 1") == [.init(code: false, text: "a"), .init(code: true, text: "x = 1")])
+        #expect(MessageBlocks.split("no code here") == [.init(code: false, text: "no code here")])
+    }
+}
