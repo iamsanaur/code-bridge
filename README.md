@@ -55,11 +55,11 @@ The app has a **Set up a relay** screen with both commands, a Copy button and a 
 <table>
   <tr>
     <td><b>Android</b></td>
-    <td>Download <a href="releases/CodeBridge-0.3.0.apk"><code>CodeBridge-0.3.0.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
+    <td>Download <a href="releases/CodeBridge-0.3.1.apk"><code>CodeBridge-0.3.1.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
   </tr>
   <tr>
     <td><b>iOS</b></td>
-    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.3.0.ipa"><code>CodeBridge-0.3.0.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
+    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.3.1.ipa"><code>CodeBridge-0.3.1.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
   </tr>
 </table>
 
@@ -169,7 +169,7 @@ cd releases && shasum -a 256 -c SHA256SUMS
 ```
 
 The APK is signed with the project's release key. Check its certificate with
-`apksigner verify --print-certs CodeBridge-0.3.0.apk`.
+`apksigner verify --print-certs CodeBridge-0.3.1.apk`.
 
 ## Under the hood
 
