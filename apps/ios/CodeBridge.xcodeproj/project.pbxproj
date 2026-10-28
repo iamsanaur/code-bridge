@@ -286,7 +286,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODEBRIDGE_API_URL = "https://codebridge.example.com";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CodeBridge uses the camera only to scan the QR code your relay shows.";
@@ -296,7 +296,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.3.3;
+				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.e404.codebridge;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -310,7 +310,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODEBRIDGE_API_URL = "http://localhost:8080";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CodeBridge uses the camera only to scan the QR code your relay shows.";
@@ -320,7 +320,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.3.3;
+				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.e404.codebridge;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
