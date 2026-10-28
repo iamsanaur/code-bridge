@@ -28,6 +28,7 @@ CodeBridge puts a terminal, git and **Claude Code** for your own computer in you
 
 - **Your code never leaves your computer.** Commands run on your machine, inside folders you approved on that machine. Optional cloud sessions run in an isolated Anthropic sandbox and are always labelled as such.
 - **You run your own relay.** There is nothing for anyone to host for you and no account to create. The QR code your relay shows is the whole sign-in.
+- **Run several agents.** The Agents tab shows every session, which need you, and lets you approve, cancel or start more.
 - **Your Claude plan works.** Claude Code runs on your computer with its own login, so sessions use your own Claude subscription. CodeBridge never sees that login.
 
 ## Get started
@@ -55,11 +56,11 @@ The app has a **Set up a relay** screen with both commands, a Copy button and a 
 <table>
   <tr>
     <td><b>Android</b></td>
-    <td>Download <a href="releases/CodeBridge-0.3.2.apk"><code>CodeBridge-0.3.2.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
+    <td>Download <a href="releases/CodeBridge-0.3.3.apk"><code>CodeBridge-0.3.3.apk</code></a> (signed) and open it. Android asks once to allow installs from your browser or files app.</td>
   </tr>
   <tr>
     <td><b>iOS</b></td>
-    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.3.2.ipa"><code>CodeBridge-0.3.2.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
+    <td>Build from source in Xcode, or use <a href="releases/CodeBridge-0.3.3.ipa"><code>CodeBridge-0.3.3.ipa</code></a> on a registered device. See <a href="#ios-installation">iOS installation</a>.</td>
   </tr>
 </table>
 
@@ -97,23 +98,38 @@ The **Agents** tab shows every Claude Code session across your computers at a gl
   </tr>
 </table>
 
-### Chat and folders
+### Agents, chat and approvals
 
 <table>
   <tr>
+    <th align="center">Agents</th>
+    <th align="center">Approve a command</th>
     <th align="center">Chat with Claude Code</th>
-    <th align="center">Add an existing folder</th>
   </tr>
   <tr>
+    <td align="center"><img src="docs/screenshots/ios-agents.png" width="260" alt="iOS Agents tab: counts of agents that need you, are working or idle, with each session listed" /></td>
+    <td align="center"><img src="docs/screenshots/ios-approve.png" width="260" alt="iOS approval card showing the exact command with Reject and Approve" /></td>
     <td align="center"><img src="docs/screenshots/ios-chat.png" width="260" alt="iOS chat: Claude Code finds a bug and fixes it, with the edit shown as red and green lines" /></td>
-    <td align="center"><img src="docs/screenshots/ios-add-folder.png" width="260" alt="iOS folder picker showing the project folders inside the computer's home folder" /></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/android-chat-light.png" width="260" alt="Android chat, light" /></td>
+    <td align="center"><img src="docs/screenshots/android-agents-dark.png" width="260" alt="Android Agents tab, dark" /></td>
+    <td align="center"><img src="docs/screenshots/android-subagent-dark.png" width="260" alt="Android subagent card with the steps it took and its report" /></td>
+    <td align="center"><img src="docs/screenshots/ios-image.png" width="260" alt="iOS chat showing a screenshot from the project" /></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><sub>The <b>Agents</b> tab shows every Claude Code session across your computers and which ones need you. Commands Claude Code is not allowed to run on its own appear as an approval card. Subagents get their own card with the steps they took, and screenshots from your project show right in the chat.</sub></td>
+  </tr>
+</table>
+
+### Folders
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/ios-add-folder.png" width="260" alt="iOS folder picker" /></td>
     <td align="center"><img src="docs/screenshots/android-add-folder-dark.png" width="260" alt="Android folder picker, dark" /></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><sub>Replies read like Claude Code's own apps, and every tool call is a card you can open. Edits show the changed lines. Pick any project folder inside your home folder; hidden and system folders are never offered.</sub></td>
+    <td colspan="2" align="center"><sub><b>Add existing folder</b> and <b>Change default folder</b> browse your computer's home folder. Hidden and system folders are never offered.</sub></td>
   </tr>
 </table>
 
@@ -171,7 +187,7 @@ cd releases && shasum -a 256 -c SHA256SUMS
 ```
 
 The APK is signed with the project's release key. Check its certificate with
-`apksigner verify --print-certs CodeBridge-0.3.2.apk`.
+`apksigner verify --print-certs CodeBridge-0.3.3.apk`.
 
 ## Under the hood
 

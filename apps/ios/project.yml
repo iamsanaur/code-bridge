@@ -20,8 +20,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.e404.codebridge
-        MARKETING_VERSION: 0.3.2
-        CURRENT_PROJECT_VERSION: 5
+        MARKETING_VERSION: 0.3.3
+        CURRENT_PROJECT_VERSION: 6
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSCameraUsageDescription: CodeBridge uses the camera only to scan the QR code your relay shows.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
